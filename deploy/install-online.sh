@@ -9,12 +9,14 @@
 #   POLY_REPO_URL  仓库地址（默认官方仓库，fork 后改这里）
 #   POLY_APP_DIR   安装目录（默认 $HOME/polymarket-auto-trader）
 #   POLY_PORT      服务端口（默认 5000）
+#   POLY_TAG       固定安装到某个版本标签（如 v1.0.0，便于云服务器锁版本）
 # ============================================================
 set -euo pipefail
 
 REPO_URL="${POLY_REPO_URL:-https://github.com/gaofeird/polymarket-auto-trader.git}"
 APP_DIR="${POLY_APP_DIR:-$HOME/polymarket-auto-trader}"
 PORT="${POLY_PORT:-5000}"
+TAG="${POLY_TAG:-}"
 RUN_USER="$(id -un)"
 PYTHON="${PYTHON:-python3}"
 
@@ -34,12 +36,17 @@ sudo apt-get install -y git python3 python3-venv python3-pip
 # ---------- 2. 克隆 / 更新代码 ----------
 if [ -d "$APP_DIR/.git" ]; then
   echo "==> 仓库已存在，git pull 更新..."
-  (cd "$APP_DIR" && git pull --ff-only) || true
+  (cd "$APP_DIR" && git fetch --tags && git pull --ff-only) || true
 else
   echo "==> 克隆代码"
   git clone "$REPO_URL" "$APP_DIR"
 fi
 cd "$APP_DIR"
+# 固定到指定版本标签（如 v1.0.0），便于云服务器锁定稳定版本
+if [ -n "$TAG" ]; then
+  echo "==> 固定到版本 $TAG"
+  (git checkout "$TAG" 2>/dev/null) || echo "警告：标签 $TAG 不存在，保持 main"
+fi
 
 # ---------- 3. 虚拟环境 + 依赖 ----------
 echo "==> 创建虚拟环境并安装依赖（deploy/requirements.txt，含全部依赖）"

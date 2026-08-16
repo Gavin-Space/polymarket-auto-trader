@@ -81,7 +81,9 @@ bash <(curl -sSL https://raw.githubusercontent.com/gaofeird/polymarket-auto-trad
 ```bash
 POLY_APP_DIR=/opt/pm   bash <(curl -sSL .../install-online.sh)   # 自定义安装目录
 POLY_REPO_URL=https://github.com/你的用户名/你的fork.git  bash <(...)  # fork 后改仓库
+POLY_TAG=v1.0.0  bash <(curl -sSL .../install-online.sh)          # 固定到 Release 版本（稳定）
 ```
+> GitHub 发布 Release 标签后（如 `v1.0.0`），用 `POLY_TAG=v1.0.0` 即可让服务器锁定该稳定版本；不带 `POLY_TAG` 则始终用 main（最新）。
 
 ### 方式 A：原生 systemd（手动版，更轻量）
 
