@@ -947,6 +947,9 @@ class AutoTraderEngine:
         self.strategy_loss_streak = {}  # strategy -> consecutive losses
         self.strategy_blocked = set()   # strategies currently paused
 
+        # Daily Telegram summary (sent once per day)
+        self.last_daily_summary_date = None
+
         # Sleep countdown: epoch seconds when the next scan cycle begins
         self.sleep_until = None
 
@@ -1181,8 +1184,29 @@ class AutoTraderEngine:
         self.state["last_scan"] = self.last_scan_time
         BotState.save(self.state)
 
+        # Daily Telegram summary — once per day
+        _today = now.strftime("%Y-%m-%d")
+        if _today != self.last_daily_summary_date:
+            self.last_daily_summary_date = _today
+            self._send_daily_summary()
+
         open_count = sum(1 for p in self.state.get("positions", []) if p.get("status") == "open")
         log.info(f"Cycle #{self.cycle_count} complete. Open positions: {open_count}")
+
+    def _send_daily_summary(self):
+        """Push a one-line daily account summary to Telegram."""
+        state = self.state
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        daily = state.get("daily_pnl", {}).get(today, {"realized": 0, "trades": 0})
+        total = state.get("total_pnl", 0) or 0
+        open_n = sum(1 for p in state.get("positions", []) if p.get("status") == "open")
+        sign = "+" if total >= 0 else ""
+        send_telegram(
+            f"📊 每日总结 {today}\n"
+            f"  今日 {daily.get('trades', 0)} 笔｜今日盈亏 {daily.get('realized', 0):+.2f} USD\n"
+            f"  累计盈亏 {sign}${total:.2f}｜持仓 {open_n} 个\n"
+            f"  模式：{mode_cn(TradingConfig.trading_mode)}"
+        )
 
     def _scan_markets(self):
         """Scan all markets using EnhancedScanner with multi-factor analysis."""
@@ -2064,6 +2088,52 @@ def api_reset_stats():
     return jsonify({"success": True, "message": "统计与持仓已重置（以当前初始资金为基准）"})
 
 
+@app.route("/api/sell", methods=["POST"])
+def api_sell():
+    """Manually sell an open position at the current mid price."""
+    data = request.json or {}
+    pos_id = data.get("id", "")
+    now = datetime.now(timezone.utc)
+    for pos in engine.state.get("positions", []):
+        if pos.get("id") == pos_id and pos.get("status") == "open":
+            token_id = pos.get("token_id", "")
+            shares = pos.get("shares", 0)
+            # Live uses the authenticated CLOB midpoint; dry-run uses public
+            price = None
+            if engine.trader.initialized:
+                price = engine.trader.get_midpoint(token_id)
+            if price is None:
+                price = OrderBookAnalyzer.get_midpoint(token_id)
+            if price is None or price <= 0:
+                price = pos.get("entry_price", 0) or 0
+
+            if TradingConfig.is_live() and token_id:
+                engine.trader.place_limit_order(token_id, round(price, 3), shares, "SELL")
+
+            entry = pos.get("entry_price", 0) or 0
+            pnl = (price - entry) * shares
+            pos["status"] = "closed_manual"
+            pos["exit_price"] = round(price, 4)
+            pos["pnl_usdc"] = round(pnl, 2)
+            pos["closed_at"] = now.isoformat()
+
+            today = now.strftime("%Y-%m-%d")
+            daily = engine.state["daily_pnl"].setdefault(today, {"realized": 0, "trades": 0})
+            daily["realized"] += pnl
+            engine.state["total_pnl"] = engine.state.get("total_pnl", 0) + pnl
+            engine.state["total_trades"] = engine.state.get("total_trades", 0) + 1
+            engine.perf_tracker.record_trade(pos.get("strategy", ""), pnl)
+            engine._record_strategy_result(pos.get("strategy", ""), pnl > 0)
+            BotState.save(engine.state)
+
+            sign = "+" if pnl >= 0 else ""
+            send_telegram(f"🖐️ 手动卖出\n  {pos['question'][:55]}\n  价格 @${price:.3f}｜盈亏 {sign}${pnl:.2f}\n  📊 {_fmt_account(engine.state)}")
+            log.info(f"  [手动卖出] {pos['question'][:50]}... @${price:.3f} 盈亏 {sign}${pnl:.2f}")
+            return jsonify({"success": True, "message": f"已卖出 @${price:.3f}，盈亏 {sign}${pnl:.2f}"})
+
+    return jsonify({"success": False, "error": "未找到该持仓或已平仓"}), 404
+
+
 def _build_strategy_breakdown(positions):
     """Build per-strategy performance breakdown."""
     breakdown = {}
@@ -2149,6 +2219,7 @@ def api_dashboard():
             "cycle_count": engine.cycle_count,
             "last_scan": engine.last_scan_time or state.get("last_scan"),
             "has_credentials": SecureCredentialManager.has_credentials(),
+            "network_ok": not GammaAPI.network_retried,
         },
         "positions": positions,
         "opportunities": engine.cached_opportunities,
@@ -2199,16 +2270,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <style>
 /* ===== Theme System ===== */
 :root {
-  /* Dark theme (default) */
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --card: #1c2128;
-  --card-hover: #22262e;
-  --border: #30363d;
-  --border-light: #21262d;
-  --text: #e6edf3;
-  --text-secondary: #c9d1d9;
-  --muted: #8b949e;
+  /* Dark theme (default) — softened with gray, less stark contrast */
+  --bg: #14181f;
+  --bg2: #1b2028;
+  --card: #212732;
+  --card-hover: #262d38;
+  --border: #333b47;
+  --border-light: #262d37;
+  --text: #d7dee8;
+  --text-secondary: #aeb6c2;
+  --muted: #7d8794;
   --primary: #2f81f7;
   --primary-d: #1f6feb;
   --primary-l: rgba(47,129,247,0.12);
@@ -2232,15 +2303,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 }
 
 [data-theme="light"] {
-  --bg: #f6f8fa;
-  --bg2: #ffffff;
-  --card: #ffffff;
-  --card-hover: #f3f4f6;
-  --border: #d0d7de;
-  --border-light: #e1e4e8;
-  --text: #1f2328;
-  --text-secondary: #3c434d;
-  --muted: #656d76;
+  /* Light theme — softened with gray, less stark white */
+  --bg: #eef0f3;
+  --bg2: #f8f9fb;
+  --card: #f8f9fb;
+  --card-hover: #eef1f4;
+  --border: #d4dae1;
+  --border-light: #e3e7ec;
+  --text: #262c34;
+  --text-secondary: #4a525d;
+  --muted: #6d7682;
   --primary: #0969da;
   --primary-d: #0550ae;
   --primary-l: rgba(9,105,218,0.08);
@@ -2264,15 +2336,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 /* Auto theme: follow system */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]):not([data-theme="light"]) {
-    --bg: #f6f8fa;
-    --bg2: #ffffff;
-    --card: #ffffff;
-    --card-hover: #f3f4f6;
-    --border: #d0d7de;
-    --border-light: #e1e4e8;
-    --text: #1f2328;
-    --text-secondary: #3c434d;
-    --muted: #656d76;
+    --bg: #eef0f3;
+    --bg2: #f8f9fb;
+    --card: #f8f9fb;
+    --card-hover: #eef1f4;
+    --border: #d4dae1;
+    --border-light: #e3e7ec;
+    --text: #262c34;
+    --text-secondary: #4a525d;
+    --muted: #6d7682;
     --primary: #0969da;
     --primary-d: #0550ae;
     --primary-l: rgba(9,105,218,0.08);
@@ -2548,7 +2620,9 @@ body {
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 /* ===== v10 美化 ===== */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-.stat, .card, .table, .section-title { animation: fadeUp 0.4s ease both; }
+/* Only animate elements that DON'T re-render every refresh (cards/tables do →
+   would flicker). Stats & section titles render once. */
+.stat, .section-title { animation: fadeUp 0.4s ease both; }
 .stat:nth-child(2) { animation-delay: 0.05s; }
 .stat:nth-child(3) { animation-delay: 0.10s; }
 .stat:nth-child(4) { animation-delay: 0.15s; }
@@ -2643,7 +2717,7 @@ body {
       <button class="btn btn-ghost" onclick="exportPositionsCSV()" style="margin-left:auto;font-size:13px;padding:6px 14px;">导出 CSV</button>
     </div>
     <table class="table" id="posTable">
-      <thead><tr><th>策略</th><th>市场</th><th>方向</th><th>入场价</th><th>数量</th><th>成本</th><th>置信度</th><th>状态</th><th>盈亏</th></tr></thead>
+      <thead><tr><th>策略</th><th>市场</th><th>方向</th><th>入场价</th><th>数量</th><th>成本</th><th>置信度</th><th>状态</th><th>盈亏</th><th>操作</th></tr></thead>
       <tbody id="posBody"></tbody>
     </table>
   </div>
@@ -3177,8 +3251,16 @@ function updateStats(s) {
 }
 
 // ===== Opportunities =====
+let lastOppsKey = '';
 function updateOpportunities(opps) {
   const grid = document.getElementById('oppGrid');
+  if (!grid) return;
+  // Skip re-render if the data didn't actually change — otherwise the 5s
+  // dashboard refresh replaces innerHTML every time and causes a visible
+  // flicker.
+  const key = JSON.stringify(opps);
+  if (key === lastOppsKey) return;
+  lastOppsKey = key;
   if (!opps || opps.length === 0) {
     grid.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">等待扫描发现机会...</div><div class="empty-hint">增强引擎正在分析订单簿、价格历史和聪明钱信号<br>点击下方按钮立即扫描一次</div><button class="btn btn-primary" onclick="manualScan()">立即扫描</button></div>';
     return;
@@ -3226,6 +3308,36 @@ function updateOpportunities(opps) {
 }
 
 // ===== Positions =====
+// Format an ISO datetime as "MM-DD HH:MM" (local time)
+function fmtDt(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d)) return '-';
+  const M = String(d.getMonth()+1).padStart(2,'0');
+  const D = String(d.getDate()).padStart(2,'0');
+  const h = String(d.getHours()).padStart(2,'0');
+  const m = String(d.getMinutes()).padStart(2,'0');
+  return M + '-' + D + ' ' + h + ':' + m;
+}
+
+// Manual sell of an open position (dry-run simulates / live places a real order)
+async function sellPosition(id) {
+  if (!confirm('确定手动卖出该持仓？')) return;
+  try {
+    const r = await fetch('/api/sell', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: id})
+    });
+    const d = await r.json();
+    if (d.success) {
+      showToast(d.message || '已卖出', 'success');
+      loadDashboard();
+    } else {
+      showToast(d.error || '卖出失败', 'error');
+    }
+  } catch(e) { showToast('网络错误: ' + e, 'error'); }
+}
+
 function updatePositions(positions) {
   const body = document.getElementById('posBody');
   if (!positions || positions.length === 0) {
@@ -3254,7 +3366,10 @@ function updatePositions(positions) {
     const confStr = p.confidence ? `<span style="font-size:11px;color:${p.confidence>=75?'var(--green)':'var(--orange)'};">${p.confidence.toFixed(0)}</span>` : '-';
     return `<tr>
       <td><span class="tag ${tagClass}">${strategyCN(p.strategy)}</span></td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.question}</td>
+      <td style="max-width:240px;">
+        <div title="${p.question}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.question}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.end_date ? '到期 ' + fmtDt(p.end_date) : '未设到期'}｜开仓 ${fmtDt(p.opened_at)}</div>
+      </td>
       <td>${p.side || '-'}</td>
       <td>$${(p.entry_price || 0).toFixed(4)}</td>
       <td>${fmtNum(p.shares || 0)}</td>
@@ -3262,6 +3377,7 @@ function updatePositions(positions) {
       <td>${confStr}</td>
       <td><span class="status-pill ${stClass}">${stText}</span></td>
       <td>${pnlStr}</td>
+      <td>${p.status === 'open' && !['Arbitrage+','Arbitrage'].includes(p.strategy) ? `<button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;" onclick="sellPosition('${p.id}')">卖出</button>` : '-'}</td>
     </tr>`;
   }).join('');
 }
