@@ -66,7 +66,24 @@ sudo systemctl restart polymarket-bot
 
 ## 三、安装
 
-### 方式 A：原生 systemd（推荐，更轻量）
+### 方式 0：一键在线安装（最快，推荐）
+
+无需手动 clone / 上传，直接在服务器上执行一行命令即可：
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/gaofeird/polymarket-auto-trader/main/deploy/install-online.sh)
+```
+
+脚本会自动：装依赖 → clone 代码 → 建 venv → 装 Python 依赖 → 装 systemd 服务。
+装完按提示 `sudo systemctl start polymarket-bot` 即可。
+
+可选参数（环境变量）：
+```bash
+POLY_APP_DIR=/opt/pm   bash <(curl -sSL .../install-online.sh)   # 自定义安装目录
+POLY_REPO_URL=https://github.com/你的用户名/你的fork.git  bash <(...)  # fork 后改仓库
+```
+
+### 方式 A：原生 systemd（手动版，更轻量）
 
 在克隆的仓库目录里（`install.sh` 在 `deploy/` 中）：
 
