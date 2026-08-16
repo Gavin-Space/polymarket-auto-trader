@@ -99,7 +99,7 @@ DEFAULT_CONFIG = {
     "filter_speculative": True,
     "filter_crypto_boundary": True,
     "tweetarb_tp_roi": 1.0,  # TweetArb 桶达到 +100% 收益即提前止盈（1.0=翻倍）
-    "maker_bias_pct": 0.0,   # 做市偏向：买单挂在 ask 下方该比例（0=按 ask 吃单，0.001=挂低0.1%做市）
+    "maker_bias_pct": 0.002, # 做市偏向：买单挂在 ask 下方该比例（0.002=挂低0.2%做市吃价差，研究证实做市是唯一稳健edge）
     "min_liquidity": 10,     # 跳过流动性分低于此的机会（研究：流动性差=吃单成本高）
     "expiry_annualized_floor": 20,  # ExpiryYield 要求的年化%下限（研究：临期理财真实但温和）
     "trading_mode": "dry_run",
@@ -355,7 +355,7 @@ class TradingConfig:
     filter_speculative = True
     filter_crypto_boundary = True
     tweetarb_tp_roi = 1.0
-    maker_bias_pct = 0.0
+    maker_bias_pct = 0.002
     min_liquidity = 10
     expiry_annualized_floor = 20
     telegram_token = ""
@@ -1918,6 +1918,7 @@ def api_status():
         "is_sleeping": engine.current_action == "sleeping",
         "sleep_remaining": engine.get_sleep_remaining(),
         "scan_interval": TradingConfig.scan_interval,
+        "network_ok": not GammaAPI.network_retried,
     })
 
 
@@ -2545,6 +2546,40 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 /* Toast animation */
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+/* ===== v10 美化 ===== */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.stat, .card, .table, .section-title { animation: fadeUp 0.4s ease both; }
+.stat:nth-child(2) { animation-delay: 0.05s; }
+.stat:nth-child(3) { animation-delay: 0.10s; }
+.stat:nth-child(4) { animation-delay: 0.15s; }
+.stat:nth-child(5) { animation-delay: 0.20s; }
+.stat:nth-child(6) { animation-delay: 0.25s; }
+.stat:nth-child(7) { animation-delay: 0.30s; }
+.stat:nth-child(8) { animation-delay: 0.35s; }
+.stat { position: relative; overflow: hidden; }
+.stat::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--primary), var(--teal)); opacity: 0.55; }
+.stat-icon { font-size: 20px; margin-right: 7px; vertical-align: -2px; }
+.stat-label { display: flex; align-items: center; font-weight: 700; }
+.stat-value.grad { background: linear-gradient(135deg, var(--text), var(--primary)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+/* confidence ring */
+.ring { display: inline-block; width: 46px; height: 46px; position: relative; vertical-align: middle; }
+.ring svg { transform: rotate(-90deg); }
+.ring .ring-bg { stroke: var(--border); }
+.ring .ring-fg { stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+.ring span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+/* P&L bar in positions table */
+.pnl-cell { display: flex; align-items: center; gap: 8px; }
+.pnl-bar { height: 6px; border-radius: 3px; background: var(--border); width: 56px; overflow: hidden; flex-shrink: 0; }
+.pnl-bar > span { display: block; height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+/* zebra rows */
+.table tbody tr:nth-child(even) td { background: rgba(127,127,127,0.045); }
+/* network status dot */
+.net-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+.net-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s ease-in-out infinite; }
+.net-dot.warn { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+.net-dot.bad { background: var(--red); box-shadow: 0 0 6px var(--red); }
+/* card hover lift */
+.grid .card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
 </style>
 </head>
 <body>
@@ -2555,7 +2590,7 @@ body {
     <div id="modeBadge" class="badge badge-off">未授权</div>
   </div>
   <div class="hdr-r">
-    <div id="actionStatus" style="font-size:13px;color:var(--muted);"></div>
+    <div style="font-size:13px;color:var(--muted);display:flex;align-items:center;"><span id="netDot" class="net-dot ok" title="网络状态"></span><span id="actionStatus"></span></div>
     <div class="theme-switch">
       <button class="theme-btn" onclick="setTheme('light')" title="亮色" data-theme-btn="light">&#9728;</button>
       <button class="theme-btn" onclick="setTheme('dark')" title="暗色" data-theme-btn="dark">&#9789;</button>
@@ -2571,14 +2606,14 @@ body {
 <div class="container">
   <!-- Stats Bar -->
   <div class="stats" id="statsBar">
-    <div class="stat"><div class="stat-label">运行时间</div><div class="stat-value" id="statRunTime" style="font-size:20px;">00:00:00</div><div class="stat-sub" id="statRunStatus">未运行</div></div>
-    <div class="stat stat-scan"><div class="stat-label">下次扫描</div><div class="stat-value" id="statNextScan">--:--</div><div class="scan-progress"><span class="scan-progress-fill" id="scanProgressFill"></span></div><div class="stat-sub" id="statNextScanSub">等待启动</div></div>
-    <div class="stat"><div class="stat-label">当前余额</div><div class="stat-value" id="statBalance">$0</div><div class="stat-sub" id="statBankrollSub">初始 $0</div></div>
-    <div class="stat"><div class="stat-label">已投入</div><div class="stat-value" id="statExposure">$0</div></div>
-    <div class="stat"><div class="stat-label">可用现金</div><div class="stat-value green" id="statCash">$0</div></div>
-    <div class="stat"><div class="stat-label">持仓数</div><div class="stat-value" id="statPositions">0</div><div class="stat-sub" id="statPositionsSub">最大 10</div></div>
-    <div class="stat"><div class="stat-label">今日盈亏</div><div class="stat-value" id="statDailyPnl">$0</div><div class="stat-sub" id="statDailyTrades">0 笔交易</div></div>
-    <div class="stat"><div class="stat-label">累计盈亏</div><div class="stat-value" id="statTotalPnl">$0</div><div class="stat-sub" id="statTotalTrades">0 笔 | 胜率 0%</div></div>
+    <div class="stat"><div class="stat-label"><span class="stat-icon">⏱️</span>运行时间</div><div class="stat-value" id="statRunTime" style="font-size:20px;">00:00:00</div><div class="stat-sub" id="statRunStatus">未运行</div></div>
+    <div class="stat stat-scan"><div class="stat-label"><span class="stat-icon">🔄</span>下次扫描</div><div class="stat-value" id="statNextScan">--:--</div><div class="scan-progress"><span class="scan-progress-fill" id="scanProgressFill"></span></div><div class="stat-sub" id="statNextScanSub">等待启动</div></div>
+    <div class="stat"><div class="stat-label"><span class="stat-icon">💰</span>当前余额</div><div class="stat-value grad" id="statBalance">$0</div><div class="stat-sub" id="statBankrollSub">初始 $0</div></div>
+    <div class="stat"><div class="stat-label"><span class="stat-icon">📊</span>已投入</div><div class="stat-value" id="statExposure">$0</div></div>
+    <div class="stat"><div class="stat-label"><span class="stat-icon">💵</span>可用现金</div><div class="stat-value green" id="statCash">$0</div></div>
+    <div class="stat"><div class="stat-label"><span class="stat-icon">📦</span>持仓数</div><div class="stat-value" id="statPositions">0</div><div class="stat-sub" id="statPositionsSub">最大 10</div></div>
+    <div class="stat"><div class="stat-label"><span class="stat-icon">📈</span>今日盈亏</div><div class="stat-value" id="statDailyPnl">$0</div><div class="stat-sub" id="statDailyTrades">0 笔交易</div></div>
+    <div class="stat"><div class="stat-label"><span class="stat-icon">🏆</span>累计盈亏</div><div class="stat-value" id="statTotalPnl">$0</div><div class="stat-sub" id="statTotalTrades">0 笔 | 胜率 0%</div></div>
   </div>
 
   <!-- Tabs -->
@@ -3015,6 +3050,13 @@ function updateHeader(s) {
   const setupBtn = document.getElementById('setupBtn');
   const stopBtn = document.getElementById('stopBtn');
   const actionStatus = document.getElementById('actionStatus');
+  // Network status dot (green OK / orange degraded / red failed)
+  const netDot = document.getElementById('netDot');
+  if (netDot) {
+    if (s.network_ok === false) { netDot.className = 'net-dot bad'; netDot.title = '网络异常（Gamma API 连接失败）'; }
+    else if (s.network_ok === undefined) { netDot.className = 'net-dot warn'; netDot.title = '网络状态未知'; }
+    else { netDot.className = 'net-dot ok'; netDot.title = '网络正常'; }
+  }
 
   if (s.is_running) {
     badge.className = 'badge ' + (s.mode === 'live' ? 'badge-live' : 'badge-dry');
@@ -3169,7 +3211,7 @@ function updateOpportunities(opps) {
       <div class="card-meta">
         <span class="tag ${tagClass}">${strategyCN(o.strategy)}</span>
         ${o.dry_run ? '<span class="tag tag-dry">模拟盘</span>' : ''}
-        <span style="font-size:11px;color:${confColor};font-weight:700;">置信度 ${conf.toFixed(0)}</span>
+        <span class="ring" title="置信度 ${conf.toFixed(0)}"><svg width="46" height="46"><circle class="ring-bg" cx="23" cy="23" r="19" fill="none" stroke-width="4"/><circle class="ring-fg" cx="23" cy="23" r="19" fill="none" stroke-width="4" stroke="${confColor}" stroke-dasharray="${(2*Math.PI*19).toFixed(1)}" stroke-dashoffset="${(2*Math.PI*19*(1-conf/100)).toFixed(1)}"/></svg><span style="color:${confColor}">${conf.toFixed(0)}</span></span>
       </div>
       <div class="prob-bar"><div class="prob-yes" style="width:${yesPct}%"></div><div class="prob-no" style="width:${noPct}%"></div></div>
       <div class="card-row"><span>方向</span><span>${o.side || 'BUY'}</span></div>
@@ -3205,7 +3247,10 @@ function updatePositions(positions) {
     };
     const [stClass, stText] = stMap[p.status] || ['st-open', p.status];
     const pnl = p.pnl_usdc || 0;
-    const pnlStr = pnl !== 0 ? (pnl >= 0 ? `<span style="color:var(--green)">${fmtSigned(pnl)}</span>` : `<span style="color:var(--red)">${fmtSigned(pnl)}</span>`) : '-';
+    const pnlPct = p.cost_usdc ? (pnl / p.cost_usdc) * 100 : 0;
+    const pnlColor = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--muted)';
+    const pnlBarW = Math.min(100, Math.abs(pnlPct));
+    const pnlStr = `<div class="pnl-cell"><div class="pnl-bar"><span style="width:${pnlBarW}%;background:${pnlColor};"></span></div><span style="color:${pnlColor};font-weight:700;">${pnl !== 0 ? fmtSigned(pnl) : '-'}</span></div>`;
     const confStr = p.confidence ? `<span style="font-size:11px;color:${p.confidence>=75?'var(--green)':'var(--orange)'};">${p.confidence.toFixed(0)}</span>` : '-';
     return `<tr>
       <td><span class="tag ${tagClass}">${strategyCN(p.strategy)}</span></td>

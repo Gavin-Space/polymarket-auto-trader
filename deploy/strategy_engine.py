@@ -789,8 +789,9 @@ class EnhancedScanner:
                 price = m.get(price_key, 0)
                 token_id = m.get(token_key, "")
 
-                # Only interested in high-probability outcomes (>= 94%, raised from 93%)
-                if price < 0.94 or price >= 1.0:
+                # Only interested in high-probability outcomes (>= 95%, raised from 94%)
+                # — higher probability → higher win rate on the main strategy.
+                if price < 0.95 or price >= 1.0:
                     continue
 
                 # Crypto price-boundary markets can flip near the line; require
@@ -830,7 +831,7 @@ class EnhancedScanner:
                 }
 
                 # Fetch order book analysis (limit API calls to high-value candidates)
-                if price >= 0.93 and token_id and not self.skip_orderbook and not _degraded:
+                if price >= 0.95 and token_id and not self.skip_orderbook and not _degraded:
                     book = OrderBookAnalyzer.analyze(token_id, order_size_usdc=20)
                     if book:
                         analysis_data["spread"] = book["spread"]
@@ -1634,6 +1635,10 @@ class SmartExitManager:
     # Ignore take-profit / exit signals worth less than this in absolute profit
     MIN_PROFIT_TO_EXIT = 0.50
 
+    # Free capital stuck in long-open positions (directional trades) whose
+    # market hasn't resolved and won't resolve soon — better "sell" control.
+    MAX_HOLD_DAYS = 14
+
     @staticmethod
     def should_exit(position, current_price, peak_price=None):
         """
@@ -1696,6 +1701,28 @@ class SmartExitManager:
         # Additional: hard stop if price dropped below 50% of entry (catastrophic)
         if current_price < entry_price * 0.5:
             return True, "stop_loss", current_price
+
+        # Time-based exit: free capital stuck in a long-open position whose
+        # market hasn't resolved and won't resolve soon. Applies to directional
+        # trades (expiry/arb already return hold_to_resolution above).
+        end_str = position.get("end_date", "")
+        resolves_soon = False
+        if end_str:
+            try:
+                end_dt = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                resolves_soon = (end_dt - datetime.now(timezone.utc)) <= timedelta(days=2)
+            except Exception:
+                resolves_soon = False
+        if not resolves_soon:
+            opened_at = position.get("opened_at", "")
+            if opened_at:
+                try:
+                    opened_dt = datetime.fromisoformat(opened_at.replace("Z", "+00:00"))
+                    days_open = (datetime.now(timezone.utc) - opened_dt).total_seconds() / 86400
+                    if days_open >= SmartExitManager.MAX_HOLD_DAYS:
+                        return True, "time_exit", current_price
+                except Exception:
+                    pass
 
         # Hold
         return False, "hold", None

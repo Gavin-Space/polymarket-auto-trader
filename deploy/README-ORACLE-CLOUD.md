@@ -37,24 +37,30 @@ Polymarket 部分 API 有地区限制。**建议**：
 
 ---
 
-## 二、上传代码到服务器
+## 二、从 GitHub 在线安装（推荐，无需手动上传）
 
-在你本机（Windows PowerShell / Mac / Linux）执行：
+代码已发布到 GitHub（公开）：`https://github.com/gaofeird/polymarket-auto-trader`
+
+在服务器上直接 `git clone` 即可拿到最新代码：
 
 ```bash
-# 1. 上传部署包
-scp polymarket-bot-deploy.zip ubuntu@<服务器公网IP>:~/
-
-# 2. SSH 登录（Ubuntu 用户名为 ubuntu；Debian 为 debian）
+# 1. SSH 登录（Ubuntu 用户名为 ubuntu；Debian 为 debian）
 ssh ubuntu@<服务器公网IP>
 
-# 3. 解压
-cd ~
-unzip polymarket-bot-deploy.zip -d polymarket-bot
-cd polymarket-bot
+# 2. 安装 git（一般自带）并克隆仓库
+sudo apt-get update && sudo apt-get install -y git
+git clone https://github.com/gaofeird/polymarket-auto-trader.git
+cd polymarket-auto-trader
 ```
 
-> 本机是 Windows：可用 `scp`（OpenSSH 自带）或 WinSCP / FileZilla 拖拽上传。
+之后照常安装（见第三节）。**以后升级**：在仓库目录里
+```bash
+git pull
+sudo systemctl restart polymarket-bot
+```
+即可拉取最新代码并重启，无需重新上传。
+
+> 备用：如果你偏好手动上传，也可下载 `polymarket-bot-deploy.zip`（GitHub Releases 或本机打包）后用 `scp` 上传解压，步骤相同。
 
 ---
 
@@ -62,13 +68,15 @@ cd polymarket-bot
 
 ### 方式 A：原生 systemd（推荐，更轻量）
 
+在克隆的仓库目录里（`install.sh` 在 `deploy/` 中）：
+
 ```bash
+cd ~/polymarket-auto-trader/deploy
 chmod +x install.sh
-./install.sh /home/ubuntu/polymarket-bot
-# 或安装到 /opt：sudo ./install.sh /opt/polymarket-bot
+./install.sh /opt/polymarket-auto-trader    # 安装到 /opt（需要 sudo，脚本内已处理）
 ```
 
-安装脚本会：装系统包 → 建 Python 虚拟环境 → 装依赖 → 装 systemd 服务。
+安装脚本会：装系统包 → 建 Python 虚拟环境 → 装依赖 → 装 systemd 服务（数据在 `/opt/polymarket-auto-trader/data/`）。
 
 管理命令：
 ```bash
@@ -85,7 +93,8 @@ sudo systemctl restart polymarket-bot   # 重启（改代码/配置后）
 sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2
 sudo systemctl enable --now docker
 
-# 构建并启动（ARM 自动用 arm64 镜像）
+# 构建并启动（ARM 自动用 arm64 镜像）；docker-compose.yml 在 deploy/ 中
+cd ~/polymarket-auto-trader/deploy
 docker compose up -d --build
 docker compose logs -f
 ```
@@ -95,9 +104,9 @@ docker compose logs -f
 ## 四、安全配置（务必做）
 
 ### 1. 设置仪表盘访问密码
-数据目录（原生：`/home/ubuntu/polymarket-bot/data/`；Docker：`./data/`）下编辑 `trading_config.json`：
+数据目录（原生：`/opt/polymarket-auto-trader/data/`；Docker：`deploy/data/`）下编辑 `trading_config.json`：
 ```bash
-nano /home/ubuntu/polymarket-bot/data/trading_config.json
+sudo nano /opt/polymarket-auto-trader/data/trading_config.json
 ```
 把 `"web_password": ""` 改成你的密码（如 `"web_password": "MySecret123"`），然后重启服务。之后访问任何页面都要用户名 `admin` + 该密码。
 
@@ -136,7 +145,7 @@ curl -s "https://gamma-api.polymarket.com/markets?limit=1" | head -c 200
 
 **Q: 依赖装不上（ARM）？**
 ```bash
-cd /home/ubuntu/polymarket-bot
+cd /opt/polymarket-auto-trader
 source venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -146,7 +155,7 @@ pip install -r requirements.txt
 停止服务后拷贝数据目录即可（含 `bot_state.json`、`trading_config.json`、`.encrypted_credentials`、`*.log`）：
 ```bash
 sudo systemctl stop polymarket-bot
-tar czf backup.tar.gz /home/ubuntu/polymarket-bot/data/
+tar czf backup.tar.gz /opt/polymarket-auto-trader/data/
 sudo systemctl start polymarket-bot
 ```
 
