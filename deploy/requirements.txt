@@ -1,0 +1,9 @@
+# Polymarket Auto-Trader — Linux deployment dependencies
+# NOTE: Linux servers must install these from PyPI (the Windows libs/ folder
+# contains .pyd binaries and will NOT work on Linux).
+flask>=3.0.0
+requests>=2.31.0
+cryptography>=42.0.0
+python-dotenv>=1.0.0
+py-clob-client>=0.20.0
+gunicorn>=21.2.0

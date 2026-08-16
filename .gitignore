@@ -1,0 +1,51 @@
+# ============================================================
+# Sensitive / local-only files — NEVER commit these
+# ============================================================
+
+# --- Secrets & credentials ---
+.env
+.env.local
+.env.*.local
+.encrypted_credentials
+.cred_salt
+*.key
+*.pem
+
+# --- Runtime state & data ---
+bot_state.json
+bot_state.json.bak
+bot_state.json.tmp
+trading_config.json
+*.log
+*.log.*
+
+# --- Personal / workbuddy memory ---
+.workbuddy/
+
+# --- Vendored Windows binaries (deploy uses pip on Linux) ---
+libs/
+
+# --- Generated reports & temp files ---
+polymarket-daily/
+polymarket-bot-deploy.zip
+test_dash.json
+test_dashboard.json
+_dump.md
+_extract.js
+status.json
+dash.json
+page.html
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- OS / editor / local config ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/

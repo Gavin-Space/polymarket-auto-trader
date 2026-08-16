@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket 完整赚钱策略执行手册</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --surface-2: #f0f2f5;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --text-dim: #656d76;
+    --accent: #0969da;
+    --green: #1a7f37;
+    --red: #cf222e;
+    --yellow: #9a6700;
+    --purple: #8250df;
+    --orange: #bc4c00;
+    --teal: #0a7b8a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.75;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+
+  .hero {
+    background: linear-gradient(135deg, #0969da 0%, #8250df 100%);
+    color: #fff;
+    padding: 48px 40px;
+    border-radius: 16px;
+    margin-bottom: 32px;
+  }
+  .hero h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+  .hero p { font-size: 16px; opacity: 0.92; }
+  .hero .meta { margin-top: 16px; font-size: 13px; opacity: 0.8; }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+  }
+  .section h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 24px 0 12px;
+    color: var(--accent);
+  }
+  .section h4 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 16px 0 8px;
+    color: var(--text);
+  }
+  .section p { margin-bottom: 12px; color: var(--text); }
+  .section ul, .section ol { margin: 8px 0 16px 20px; }
+  .section li { margin-bottom: 6px; }
+
+  .phase-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .phase-1 { background: #ddf4ff; color: #0969da; border: 1px solid #54aeff; }
+  .phase-2 { background: #dafbe1; color: #1a7f37; border: 1px solid #4ac26b; }
+  .phase-3 { background: #fbefff; color: #8250df; border: 1px solid #d2a8ff; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 14px;
+  }
+  th {
+    background: var(--surface-2);
+    text-align: left;
+    padding: 10px 12px;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: var(--surface-2); }
+
+  .callout {
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout-warn {
+    background: #fff8c5;
+    border-left: 4px solid var(--yellow);
+    color: #633c01;
+  }
+  .callout-info {
+    background: #ddf4ff;
+    border-left: 4px solid var(--accent);
+    color: #0550ae;
+  }
+  .callout-danger {
+    background: #ffebe9;
+    border-left: 4px solid var(--red);
+    color: #82071e;
+  }
+  .callout-success {
+    background: #dafbe1;
+    border-left: 4px solid var(--green);
+    color: #0a3622;
+  }
+
+  .strategy-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 16px 0;
+    background: var(--surface-2);
+  }
+  .strategy-card h4 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .strategy-card .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .tag-low { background: #dafbe1; color: #1a7f37; }
+  .tag-med { background: #fff8c5; color: #9a6700; }
+  .tag-high { background: #ffebe9; color: #cf222e; }
+
+  .formula {
+    background: #161b22;
+    color: #e6edf3;
+    padding: 16px;
+    border-radius: 8px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 13px;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+
+  .workflow-step {
+    display: flex;
+    gap: 16px;
+    margin: 12px 0;
+    align-items: flex-start;
+  }
+  .workflow-step .num {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .workflow-step .content { flex: 1; }
+  .workflow-step .content strong { display: block; margin-bottom: 4px; }
+
+  .checklist {
+    list-style: none;
+    margin: 12px 0;
+    padding: 0;
+  }
+  .checklist li {
+    padding: 8px 0 8px 28px;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+  }
+  .checklist li::before {
+    content: "☐";
+    position: absolute;
+    left: 0;
+    font-size: 18px;
+  }
+
+  .kbd {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  .toc {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .toc h3 { margin-bottom: 10px; font-size: 15px; }
+  .toc ol { margin-left: 20px; }
+  .toc li { margin-bottom: 4px; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  .highlight-box {
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 16px 0;
+    background: #ddf4ff;
+  }
+
+  .risk-meter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .risk-bar {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    border-radius: 2px;
+  }
+
+  @media (max-width: 640px) {
+    .container { padding: 20px 12px; }
+    .section { padding: 20px; }
+    .hero { padding: 32px 20px; }
+    table { font-size: 13px; }
+    th, td { padding: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Hero -->
+<div class="hero">
+  <h1>Polymarket 完整赚钱策略执行手册</h1>
+  <p>从 $200 起步到月回报 10-20% 的分阶段实战路线图</p>
+  <div class="meta">基于 2026 年 8 月 12 日实时市场数据 · 含具体操作规则、仓位公式、每日工作流、风控体系</div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#overview">三阶段路线图总览</a></li>
+    <li><a href="#phase1">Phase 1（第 1-2 月）：地基与稳健收益</a></li>
+    <li><a href="#phase2">Phase 2（第 3-4 月）：扩张与多元化</a></li>
+    <li><a href="#phase3">Phase 3（第 5-6 月+）：进阶与半自动化</a></li>
+    <li><a href="#risk">风控体系（全阶段通用）</a></li>
+    <li><a href="#tools">工具清单与配置指南</a></li>
+    <li><a href="#journal">交易日志模板</a></li>
+    <li><a href="#markets">当前具体市场机会清单（2026.08.12）</a></li>
+    <li><a href="#rules">20 条铁律</a></li>
+  </ol>
+</div>
+
+<!-- ============ OVERVIEW ============ -->
+<div class="section" id="overview">
+  <h2>三阶段路线图总览</h2>
+
+  <p>本手册将你的 Polymarket 之旅分为三个阶段，每个阶段有明确的目标资金、策略组合、时间投入和晋级标准。</p>
+
+  <table>
+    <tr>
+      <th>维度</th>
+      <th>Phase 1 · 稳健期</th>
+      <th>Phase 2 · 扩张期</th>
+      <th>Phase 3 · 进阶期</th>
+    </tr>
+    <tr>
+      <td><strong>时间</strong></td>
+      <td>第 1-2 个月</td>
+      <td>第 3-4 个月</td>
+      <td>第 5-6 个月+</td>
+    </tr>
+    <tr>
+      <td><strong>资金</strong></td>
+      <td>$200 - $500</td>
+      <td>$1,000 - $5,000</td>
+      <td>$5,000 - $10,000+</td>
+    </tr>
+    <tr>
+      <td><strong>月回报目标</strong></td>
+      <td>3% - 8%</td>
+      <td>8% - 15%</td>
+      <td>10% - 20%</td>
+    </tr>
+    <tr>
+      <td><strong>时间投入</strong></td>
+      <td>2-3 小时/周</td>
+      <td>1-2 小时/天</td>
+      <td>2-3 小时/天 + 自动化</td>
+    </tr>
+    <tr>
+      <td><strong>核心策略</strong></td>
+      <td>A. 临期确定性理财<br>B. 推文预测学习</td>
+      <td>A + C. 聪明钱跟单<br>D. 专业领域方向性</td>
+      <td>A + C + D + E. 信息套利<br>F. 半自动化推文</td>
+    </tr>
+    <tr>
+      <td><strong>单笔仓位上限</strong></td>
+      <td>5% 仓位（$10-25）</td>
+      <td>5% 仓位（$50-250）</td>
+      <td>5% 仓位（$250-500）</td>
+    </tr>
+    <tr>
+      <td><strong>同时持仓数</strong></td>
+      <td>6-10 个</td>
+      <td>10-15 个</td>
+      <td>15-25 个</td>
+    </tr>
+    <tr>
+      <td><strong>晋级标准</strong></td>
+      <td>50 笔交易<br>胜率 > 60%<br>无单笔亏损 > 3%</td>
+      <td>200 笔交易<br>月稳定盈利<br>Sharpe > 1.0</td>
+      <td>持续运营<br>半自动化运行</td>
+    </tr>
+  </table>
+
+  <div class="callout callout-warn">
+    <strong>⚠️ 合规前提</strong>：Polymarket 官方限制中国大陆用户使用，网站被 GFW 屏蔽。以下策略仅适用于你在海外合法地区（如美国非受限州、东南亚等）的情况。请在遵守当地法律的前提下操作。
+  </div>
+</div>
+
+<!-- ============ PHASE 1 ============ -->
+<div class="section" id="phase1">
+  <h2>Phase 1（第 1-2 月）：地基与稳健收益</h2>
+
+  <div class="phase-banner phase-1">
+    🟦 目标：$200-500 起步，学会选市场、执行交易、记录复盘，月回报 3-8%
+  </div>
+
+  <!-- Strategy A -->
+  <h3>策略 A：临期确定性理财</h3>
+
+  <div class="strategy-card">
+    <h4>
+      <span class="tag tag-low">低风险</span>
+      <span class="tag tag-low">Sharpe 1.9</span>
+      <span class="tag tag-low">年化 30-50%</span>
+      临期 NO 吃利息
+    </h4>
+    <p><strong>核心逻辑</strong>：在即将到期的市场中，如果某事件几乎不可能发生（NO 概率 > 95%），买入 NO 份额。到期后 NO 结算为 $1.00，你赚取买入价与 $1.00 之间的差价。</p>
+    <p><strong>举例</strong>：LeBron James 退役市场，NO 报价 $0.99，10 月 20 日到期。你花 $99 买 100 股 NO。到期 LeBron 没退役 → NO 结算 $1.00 → 你拿回 $100，赚 $1。看起来少，但如果 7 天到期的市场，年化 = (1/99) × (365/7) ≈ <strong>52.6%</strong>。</p>
+  </div>
+
+  <h4>选市标准（必须全部满足）</h4>
+  <table>
+    <tr>
+      <th>条件</th>
+      <th>标准</th>
+      <th>原因</th>
+    </tr>
+    <tr>
+      <td>NO 概率</td>
+      <td>≥ 95%（即 NO 价格 ≤ $0.05）</td>
+      <td>足够高的确定性</td>
+    </tr>
+    <tr>
+      <td>到期时间</td>
+      <td>1-30 天</td>
+      <td>资本效率：越快到期年化越高</td>
+    </tr>
+    <tr>
+      <td>市场交易量</td>
+      <td>> $10,000</td>
+      <td>确保流动性，能买入和退出</td>
+    </tr>
+    <tr>
+      <td>价差（Spread）</td>
+      <td>≤ 3 cents</td>
+      <td>买入卖出价差小，不吃亏</td>
+    </tr>
+    <tr>
+      <td>结算规则</td>
+      <td>清晰无歧义</td>
+      <td>避免灰色地带导致争议</td>
+    </tr>
+    <tr>
+      <td>黑天鹅风险</td>
+      <td>低（非政治/地缘类优先）</td>
+      <td>避免突发新闻翻转</td>
+    </tr>
+  </table>
+
+  <h4>入场操作流程</h4>
+  <div class="workflow-step">
+    <div class="num">1</div>
+    <div class="content">
+      <strong>筛选市场</strong>
+      打开 polymarket.com → 按 "Ending Soon" 排序 → 逐一检查 NO 概率 > 95% 的市场<br>
+      辅助工具：predscope.com/stats 查看 90-100% 概率区间的市场（当前有 356 个）
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">2</div>
+    <div class="content">
+      <strong>验证确定性</strong>
+      读结算规则 → 确认结算数据源 → 评估黑天鹅概率<br>
+      <em>问自己：未来 N 天内，有什么事件能让 YES 变成现实？如果没有，入场。</em>
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">3</div>
+    <div class="content">
+      <strong>计算年化收益</strong>
+      <div class="formula">
+年化收益 = (1 - NO价格) / NO价格 × (365 / 到期天数)
+
+示例：NO价格 $0.97，3天到期
+年化 = (0.03 / 0.97) × (365 / 3) = 0.0309 × 121.7 = 376%
+
+示例：NO价格 $0.99，30天到期
+年化 = (0.01 / 0.99) × (365 / 30) = 0.0101 × 12.17 = 12.3%
+      </div>
+      <em>目标：年化 > 30% 的才值得做。3-7 天到期的性价比最高。</em>
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">4</div>
+    <div class="content">
+      <strong>下单（限价单！）</strong>
+      始终用限价单（Limit Order），0% 手续费<br>
+      在当前 NO Ask 价基础上压低 0.5-1 cent 挂单<br>
+      如果 30 分钟未成交，调整到 Ask 价或取消
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">5</div>
+    <div class="content">
+      <strong>记录日志</strong>
+      立即在交易日志中记录：市场名、方向(NO)、买入价、数量、金额、到期日、年化、确定性理由
+    </div>
+  </div>
+
+  <h4>出场规则</h4>
+  <ul>
+    <li><strong>正常持有到期</strong>：这是主要方式。NO 结算 $1.00，自动到账。</li>
+    <li><strong>提前退出</strong>：如果出现可能改变结果的消息（哪怕概率很小），立即以当前价卖出。不要赌。</li>
+    <li><strong>止盈</strong>：如果 NO 价格从 $0.95 涨到 $0.98+，可以卖出锁定利润，释放资金做下一个。</li>
+  </ul>
+
+  <!-- Strategy B -->
+  <h3>策略 B：马斯克推文预测（学习模式）</h3>
+
+  <div class="strategy-card">
+    <h4>
+      <span class="tag tag-med">中风险</span>
+      <span class="tag tag-med">7天周期</span>
+      <span class="tag tag-low">新手推荐</span>
+      推文区间桶交易
+    </h4>
+    <p><strong>核心逻辑</strong>：Polymarket 每周发布"马斯克下周发多少条推文"的预测市场，按数量分成多个区间桶（如 200-219、220-239、240-259），只有最终落在哪个桶，YES 结算 $1.00。</p>
+    <p><strong>为什么适合新手</strong>：数据完全公开透明（xtracker.polymarket.com 实时追踪），7 天结算周期快，流动性高（$528K/24h），规律性强（日均 20-40 条）。</p>
+  </div>
+
+  <h4>推文预测方法论</h4>
+  <table>
+    <tr>
+      <th>步骤</th>
+      <th>操作</th>
+      <th>工具</th>
+    </tr>
+    <tr>
+      <td>1. 查看当前进度</td>
+      <td>访问 xtracker.polymarket.com，看本周已发推文数和日均速率</td>
+      <td>xtracker.polymarket.com</td>
+    </tr>
+    <tr>
+      <td>2. 计算 projected 总数</td>
+      <td>当前数 / 已过天数 × 7 = 预测总数</td>
+      <td>手算/表格</td>
+    </tr>
+    <tr>
+      <td>3. 对比历史模式</td>
+      <td>参考过去 4-8 周的发帖规律：工作日 vs 周末、有无重大事件</td>
+      <td>xtracker 历史数据</td>
+    </tr>
+    <tr>
+      <td>4. 评估催化因素</td>
+      <td>Tesla 财报/SpaceX 发射/xAI 发布/政治事件 → 推文量飙升</td>
+      <td>新闻监控</td>
+    </tr>
+    <tr>
+      <td>5. 定位目标桶</td>
+      <td>找到 projected 总数最可能落入的 1-2 个桶</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>6. 检查桶价格</td>
+      <td>如果目标桶 YES 价格 < 你估算的概率，买入</td>
+      <td>Polymarket 市场页</td>
+    </tr>
+  </table>
+
+  <div class="callout callout-info">
+    <strong>桶交易进阶技巧</strong>：买入相邻 2-3 个桶（如 220-239 + 240-259），如果多个桶 YES 价格之和 < $0.90，相当于用 $0.90 买了一个 90%+ 概率的事件，存在正期望值（+EV）。这是 @noovd 风格的经典策略。
+  </div>
+
+  <h4>入场时机</h4>
+  <ul>
+    <li><strong>最佳入场</strong>：周一或周二初，此时数据少、价格波动大、定价偏差多</li>
+    <li><strong>次佳入场</strong>：周三-周四，已有 3-4 天数据，projected 更准确，但价格也更有效</li>
+    <li><strong>避免入场</strong>：周五-周六，价格已充分定价，剩余空间小</li>
+    <li><strong>关键操作</strong>：每天检查 xtracker 1-2 次，如果实际推文速率大幅偏离预期，及时调整</li>
+  </ul>
+
+  <h4>Phase 1 每日工作流</h4>
+  <table>
+    <tr>
+      <th>时间</th>
+      <th>任务</th>
+      <th>预计耗时</th>
+    </tr>
+    <tr>
+      <td>每天早上 10 分钟</td>
+      <td>
+        ① 打开 Polymarket → "Ending Soon" 排序<br>
+        ② 筛选 NO > 95% 且 1-7 天到期的市场<br>
+        ③ 检查已持仓市场的状态<br>
+        ④ 记录到日志
+      </td>
+      <td>10 分钟</td>
+    </tr>
+    <tr>
+      <td>每周一 20 分钟</td>
+      <td>
+        ① 打开 xtracker 查看新一周推文市场<br>
+        ② 计算 projected 总数，定位目标桶<br>
+        ③ 下限价单买入<br>
+        ④ 记录到日志
+      </td>
+      <td>20 分钟</td>
+    </tr>
+    <tr>
+      <td>每周五 15 分钟</td>
+      <td>
+        ① 检查推文市场是否需要调整<br>
+        ② 本周交易复盘：胜率、收益、错误<br>
+        ③ 更新策略笔记
+      </td>
+      <td>15 分钟</td>
+    </tr>
+    <tr>
+      <td><strong>每周总计</strong></td>
+      <td>—</td>
+      <td><strong>约 2-3 小时</strong></td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============ PHASE 2 ============ -->
+<div class="section" id="phase2">
+  <h2>Phase 2（第 3-4 月）：扩张与多元化</h2>
+
+  <div class="phase-banner phase-2">
+    🟩 目标：$1K-5K，加入跟单和方向性交易，月回报 8-15%
+  </div>
+
+  <p>在 Phase 1 策略 A+B 的基础上，新增策略 C 和 D。资金和经验都有了，可以开始追求更高回报。</p>
+
+  <!-- Strategy C -->
+  <h3>策略 C：聪明钱跟单</h3>
+
+  <div class="strategy-card">
+    <h4>
+      <span class="tag tag-med">中风险</span>
+      <span class="tag tag-med">Sharpe 1.4</span>
+      <span class="tag tag-low">需工具辅助</span>
+      镜像高胜率钱包
+    </h4>
+    <p><strong>核心逻辑</strong>：Polymarket 运行在 Polygon 公链上，所有交易公开可查。找到长期盈利的钱包，小额镜像他们的交易。</p>
+  </div>
+
+  <h4>第一步：找到聪明钱</h4>
+  <table>
+    <tr>
+      <th>工具</th>
+      <th>用途</th>
+      <th>费用</th>
+      <th>优先级</th>
+    </tr>
+    <tr>
+      <td>Arkham Intel</td>
+      <td>排行榜按 PNL/ROI/胜率排序，20+ Polymarket 专属标签</td>
+      <td>免费</td>
+      <td>⭐⭐⭐ 必用</td>
+    </tr>
+    <tr>
+      <td>Polywhaler</td>
+      <td>$10K+ 交易实时推送，含钱包 PNL 和胜率</td>
+      <td>免费</td>
+      <td>⭐⭐⭐ 必用</td>
+    </tr>
+    <tr>
+      <td>Kiyotaka.ai</td>
+      <td>AI 检测高胜率钱包（不仅看金额，看准确率）</td>
+      <td>免费层</td>
+      <td>⭐⭐ 推荐</td>
+    </tr>
+    <tr>
+      <td>Kreo</td>
+      <td>一体化分析 + 跟单自动化</td>
+      <td>免费层/付费</td>
+      <td>⭐ 可选</td>
+    </tr>
+    <tr>
+      <td>Polymarket 排行榜</td>
+      <td>平台自带，按总 PNL 排序</td>
+      <td>免费</td>
+      <td>⭐⭐ 参考</td>
+    </tr>
+  </table>
+
+  <h4>第二步：建立观察列表</h4>
+  <ol>
+    <li>在 Arkham 筛选 <strong>Polymarket High Win Rate Trader</strong> 标签</li>
+    <li>筛选条件：胜率 > 65%、交易笔数 > 100、总 PNL > $10K</li>
+    <li>挑选 <strong>3-5 个不同领域</strong>的钱包（如一个专注体育、一个专注政治、一个专注加密）</li>
+    <li>观察 1-2 周：记录他们的开仓方向、入场时机、持仓时间</li>
+    <li>确认他们的风格：是长持到期型还是短线翻转型？</li>
+  </ol>
+
+  <h4>第三步：镜像跟单规则</h4>
+  <table>
+    <tr>
+      <th>规则</th>
+      <th>标准</th>
+    </tr>
+    <tr>
+      <td>跟单金额</td>
+      <td>对方金额的 1/100 到 1/50（如果对方投 $5,000，你投 $50-100）</td>
+    </tr>
+    <tr>
+      <td>跟单延迟</td>
+      <td>在对方交易后 5-30 分钟内跟进（太快可能价格已动，太慢可能错过窗口）</td>
+    </tr>
+    <tr>
+      <td>最大跟单钱包数</td>
+      <td>同时跟踪 3-5 个，分散到不同领域</td>
+    </tr>
+    <tr>
+      <td>止损</td>
+      <td>如果跟随的市场价格从你的买入价下跌 > 30%，评估是否退出</td>
+    </tr>
+    <tr>
+      <td>不跟单的情况</td>
+      <td>① 对方投的是你完全不懂的市场 ② 市场流动性 < $10K ③ 你已经有类似仓位</td>
+    </tr>
+  </table>
+
+  <div class="callout callout-warn">
+    <strong>⚠️ 跟单不是无脑复制</strong>：聪明钱也会亏。跟单的核心价值是<strong>确认信号</strong>——当你也在考虑一个方向，而聪明钱也在下注同一个方向时，这增强了你的信心。如果对方下注的方向你完全不理解，不要跟。
+  </div>
+
+  <!-- Strategy D -->
+  <h3>策略 D：专业领域方向性交易</h3>
+
+  <div class="strategy-card">
+    <h4>
+      <span class="tag tag-high">高风险</span>
+      <span class="tag tag-high">高回报</span>
+      <span class="tag tag-med">需专业知识</span>
+      利用你的信息优势
+    </h4>
+    <p><strong>核心逻辑</strong>：在你最懂的领域（电竞、NBA、加密、AI 行业、地缘政治），找到市场定价偏差，下注你认为正确的方向。这是赚大钱的核心策略——顶级交易者 "Swisstony" 以此在体育市场赚了 $370 万。</p>
+  </div>
+
+  <h4>信息优势来源</h4>
+  <table>
+    <tr>
+      <th>领域</th>
+      <th>你的信息优势可能来自</th>
+      <th>市场定价偏差常见场景</th>
+    </tr>
+    <tr>
+      <td>电竞（LOL）</td>
+      <td>你关注 LPL/LCK 赛事、选手状态、版本更新影响</td>
+      <td>赔率调整滞后于阵容公布/版本更新</td>
+    </tr>
+    <tr>
+      <td>NBA</td>
+      <td>你跟踪伤病报告、交易动态、球队化学反应</td>
+      <td>伤病消息发布后 5-30 分钟内价格才调整到位</td>
+    </tr>
+    <tr>
+      <td>加密货币</td>
+      <td>你理解链上数据、代币经济学、市场情绪</td>
+      <td>BTC 短线涨跌市场经常在 50/50 附近，有微小幅度的定价偏差</td>
+    </tr>
+    <tr>
+      <td>AI/科技行业</td>
+      <td>你跟踪 AI 公司动态、模型发布时间线</td>
+      <td>"GPT-6 何时发布"等市场，行业内部人比市场更准</td>
+    </tr>
+    <tr>
+      <td>地缘政治</td>
+      <td>你深度跟踪某个地区的新闻和信息流</td>
+      <td>全站交易量最大的板块，但也是黑天鹅风险最高的</td>
+    </tr>
+  </table>
+
+  <h4>方向性交易操作框架</h4>
+  <div class="workflow-step">
+    <div class="num">1</div>
+    <div class="content">
+      <strong>写下你的概率估算（在看价格之前）</strong>
+      基于你的专业知识，先独立估算事件发生的概率。这避免锚定效应。
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">2</div>
+    <div class="content">
+      <strong>对比市场价格</strong>
+      如果你的估算与市场价格的差距 > 10%，可能存在 edge。<br>
+      <div class="formula">
+Edge = 你的估算概率 - 市场隐含概率
+
+示例：你估算某队赢球概率 70%，市场 YES 价格 $0.55（55%）
+Edge = 70% - 55% = 15% → 有明显 edge，可入场
+      </div>
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">3</div>
+    <div class="content">
+      <strong>用 Kelly 公式计算仓位</strong>
+      <div class="formula">
+Kelly 公式：f* = (b × p - q) / b
+  b = 净赔率 = (1 / 市场价格) - 1
+  p = 你的估算概率
+  q = 1 - p
+
+实际使用 Half Kelly（除以 2）
+
+示例：市场价 $0.55，你估算 p = 70%
+  b = (1/0.55) - 1 = 0.818
+  f* = (0.818 × 0.70 - 0.30) / 0.818 = (0.573 - 0.30) / 0.818 = 0.334
+  Half Kelly = 0.334 / 2 = 16.7%
+  → 但受 5% 仓位上限约束，实际下 5%
+      </div>
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">4</div>
+    <div class="content">
+      <strong>设限价单入场</strong>
+      在当前价格基础上压低 1-2 cent 挂限价单。0% 手续费。
+    </div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">5</div>
+    <div class="content">
+      <strong>持续跟踪</strong>
+      每天检查相关信息流。如果新信息改变了你的概率估算，重新评估是否持有。
+    </div>
+  </div>
+
+  <h4>Phase 2 每日工作流</h4>
+  <table>
+    <tr>
+      <th>时段</th>
+      <th>任务</th>
+      <th>耗时</th>
+    </tr>
+    <tr>
+      <td>早晨 15 分钟</td>
+      <td>① 检查临期 NO 市场机会（策略 A）<br>② 查看已持仓状态<br>③ 检查 Polywhaler 推送的鲸鱼动态</td>
+      <td>15 min</td>
+    </tr>
+    <tr>
+      <td>中午 20 分钟</td>
+      <td>① 检查 xtracker 推文进度（策略 B）<br>② 浏览你专业领域的新闻和信息流<br>③ 检查聪明钱观察列表的新动作</td>
+      <td>20 min</td>
+    </tr>
+    <tr>
+      <td>晚间 15 分钟</td>
+      <td>① 评估新发现的方向性交易机会<br>② 执行跟单操作（如有信号）<br>③ 更新交易日志</td>
+      <td>15 min</td>
+    </tr>
+    <tr>
+      <td>每周日 30 分钟</td>
+      <td>① 全面复盘：胜率、收益、错误分析<br>② 评估聪明钱表现，调整观察列表<br>③ 下周计划</td>
+      <td>30 min</td>
+    </tr>
+    <tr>
+      <td><strong>每日总计</strong></td>
+      <td>—</td>
+      <td><strong>约 1-1.5 小时</strong></td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============ PHASE 3 ============ -->
+<div class="section" id="phase3">
+  <h2>Phase 3（第 5-6 月+）：进阶与半自动化</h2>
+
+  <div class="phase-banner phase-3">
+    🟪 目标：$5K-10K+，半自动化运营，月回报 10-20%
+  </div>
+
+  <!-- Strategy E -->
+  <h3>策略 E：信息套利</h3>
+
+  <div class="strategy-card">
+    <h4>
+      <span class="tag tag-med">中高风险</span>
+      <span class="tag tag-high">时间敏感</span>
+      <span class="tag tag-low">小资金友好</span>
+      新闻事件后的价格滞后
+    </h4>
+    <p><strong>核心逻辑</strong>：Polymarket 的参与者以散户为主，价格调整速度比传统金融市场慢 5 分钟到 2 小时。当重大新闻发生时，如果你能在市场反应前入场，就能获得巨大 edge。</p>
+  </div>
+
+  <h4>信息套利操作要点</h4>
+  <ul>
+    <li><strong>监控关键信息源</strong>：Twitter/X（设置关键人物通知）、Bloomberg、ESPN、官方公告页</li>
+    <li><strong>关联市场地图</strong>：提前列出"如果 X 发生，哪些市场会受影响"的映射表</li>
+    <li><strong>执行速度</strong>：从看到新闻到下单 < 3 分钟。提前在 Polymarket 上看好相关市场页面的 URL</li>
+    <li><strong>典型场景</strong>：
+      <ul>
+        <li>NBA 球员伤病报告发布 → 赛事胜负市场调整滞后</li>
+        <li>美联储利率决议 → 加密涨跌市场反应延迟</li>
+        <li>AI 公司突然发布新模型 → "某模型何时发布"市场立即结算</li>
+        <li>政治人物突然宣布退选/参选 → 相关选举市场剧烈波动</li>
+      </ul>
+    </li>
+  </ul>
+
+  <!-- Strategy F -->
+  <h3>策略 F：半自动化推文交易</h3>
+
+  <div class="strategy-card">
+    <h4>
+      <span class="tag tag-low">低风险</span>
+      <span class="tag tag-low">自动化</span>
+      <span class="tag tag-med">需技术配置</span>
+      XTracker + 自动下单
+    </h4>
+    <p><strong>核心逻辑</strong>：利用开源工具（如 polymarket-elon-tweets SDK），自动监控 XTracker 的推文计数和市场价格，当相邻桶的总价 < $1 时自动买入，锁定统计套利。</p>
+  </div>
+
+  <h4>自动化搭建步骤</h4>
+  <ol>
+    <li>安装 Simmer SDK：<code>pip install simmer-sdk</code></li>
+    <li>获取 Simmer API Key（simmer.markets/dashboard）</li>
+    <li>配置钱包私钥（环境变量 WALLET_PRIVATE_KEY）</li>
+    <li>设置参数：最大仓位 $10/桶、买入相邻 1 个桶、退出阈值 $0.95</li>
+    <li>先 dry run（<code>python elon_tweets.py</code>），观察 1-2 周</li>
+    <li>确认策略有效后开启 live 模式（<code>--live --smart-sizing</code>）</li>
+    <li>设置 cron 每小时运行一次（<code>--quiet</code> 模式）</li>
+  </ol>
+
+  <div class="callout callout-danger">
+    <strong>⚠️ 自动化风险提示</strong>：自动交易会放大错误。务必先用 dry run 模式运行至少 2 周，确认逻辑正确后再开 live。设置每日最大亏损限制，超过后自动停止。
+  </div>
+
+  <h4>Phase 3 组合管理</h4>
+  <table>
+    <tr>
+      <th>策略</th>
+      <th>资金分配</th>
+      <th>目标月回报</th>
+      <th>自动化程度</th>
+    </tr>
+    <tr>
+      <td>A. 临期理财</td>
+      <td>30%</td>
+      <td>3-5%</td>
+      <td>手动 + 提醒</td>
+    </tr>
+    <tr>
+      <td>B/F. 推文交易</td>
+      <td>20%</td>
+      <td>5-10%</td>
+      <td>半自动</td>
+    </tr>
+    <tr>
+      <td>C. 聪明钱跟单</td>
+      <td>20%</td>
+      <td>5-10%</td>
+      <td>手动 + Kreo 跟单</td>
+    </tr>
+    <tr>
+      <td>D. 方向性交易</td>
+      <td>20%</td>
+      <td>10-20%</td>
+      <td>手动</td>
+    </tr>
+    <tr>
+      <td>E. 信息套利</td>
+      <td>10%</td>
+      <td>15-30%（高波动）</td>
+      <td>手动，需快速执行</td>
+    </tr>
+    <tr>
+      <td><strong>现金储备</strong></td>
+      <td><strong>保持 30%</strong></td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+  </table>
+
+  <h4>Phase 3 每日工作流</h4>
+  <table>
+    <tr>
+      <th>时段</th>
+      <th>任务</th>
+      <th>耗时</th>
+    </tr>
+    <tr>
+      <td>早晨 20 分钟</td>
+      <td>① 检查自动交易运行状态和持仓<br>② 筛选新临期市场（策略 A）<br>③ 浏览鲸鱼动态（策略 C）</td>
+      <td>20 min</td>
+    </tr>
+    <tr>
+      <td>全天（事件驱动）</td>
+      <td>① 监控关键信息源，随时准备信息套利<br>② 检查聪明钱推送通知</td>
+      <td>碎片化</td>
+    </tr>
+    <tr>
+      <td>中午 30 分钟</td>
+      <td>① 深度分析专业领域市场（策略 D）<br>② 执行方向性交易<br>③ 检查推文市场状态</td>
+      <td>30 min</td>
+    </tr>
+    <tr>
+      <td>晚间 30 分钟</td>
+      <td>① 全面持仓检查和调整<br>② 日志更新和数据分析<br>③ 策略优化思考</td>
+      <td>30 min</td>
+    </tr>
+    <tr>
+      <td>每周日 1 小时</td>
+      <td>① 全策略复盘<br>② 自动化参数调优<br>③ 下周计划和市场扫描</td>
+      <td>60 min</td>
+    </tr>
+    <tr>
+      <td><strong>每日总计</strong></td>
+      <td>—</td>
+      <td><strong>约 2-3 小时</strong></td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============ RISK MANAGEMENT ============ -->
+<div class="section" id="risk">
+  <h2>风控体系（全阶段通用）</h2>
+
+  <h3>仓位管理</h3>
+  <table>
+    <tr>
+      <th>规则</th>
+      <th>标准</th>
+      <th>说明</th>
+    </tr>
+    <tr>
+      <td>单笔仓位上限</td>
+      <td>≤ 5% 总资金</td>
+      <td>$500 资金 → 单笔 ≤ $25；$5,000 → ≤ $250</td>
+    </tr>
+    <tr>
+      <td>单类别仓位上限</td>
+      <td>≤ 30%</td>
+      <td>政治类、体育类、加密类等每个类别最多 30%</td>
+    </tr>
+    <tr>
+      <td>同时持仓数</td>
+      <td>6-25 个（随阶段递增）</td>
+      <td>分散到不同不相关的市场</td>
+    </tr>
+    <tr>
+      <td>现金储备</td>
+      <td>≥ 30%</td>
+      <td>随时保持弹药，等待新机会</td>
+    </tr>
+    <tr>
+      <td>新手保护期</td>
+      <td>前 100 笔交易 ≤ 2%</td>
+      <td>未验证 edge 前极度保守</td>
+    </tr>
+  </table>
+
+  <h3>回撤应对计划</h3>
+  <table>
+    <tr>
+      <th>回撤幅度</th>
+      <th>应对措施</th>
+      <th>状态</th>
+    </tr>
+    <tr>
+      <td>回撤 10%</td>
+      <td>正常波动。继续交易，检查近期交易是否有流程错误</td>
+      <td>🟢 正常</td>
+    </tr>
+    <tr>
+      <td>回撤 20%</td>
+      <td><strong>仓位减半</strong>。审查概率估算是否有校准问题</td>
+      <td>🟡 警戒</td>
+    </tr>
+    <tr>
+      <td>回撤 30%</td>
+      <td><strong>停止交易一周</strong>。全面复盘所有交易。仅在找到可纠正错误后才恢复</td>
+      <td>🔴 危险</td>
+    </tr>
+    <tr>
+      <td>回撤 40%+</td>
+      <td><strong>考虑退出</strong>。重新评估是否适合预测市场交易</td>
+      <td>⛔ 紧急</td>
+    </tr>
+  </table>
+
+  <h3>绝对禁止事项</h3>
+  <ul class="checklist">
+    <li>不用借来的钱交易</li>
+    <li>不用生活必需资金交易</li>
+    <li>不在亏损后加仓"回本"（Tilt 交易）</li>
+    <li>不在不理解的结算规则的市场交易</li>
+    <li>不在流动性 < $10K 的市场交易</li>
+    <li>不把超过 30% 资金投入单一事件</li>
+    <li>不在情绪激动时下单（赢了大涨后、亏了之后）</li>
+    <li>不忽略手续费（虽然限价单 0%，但市价单有 0.5-2%）</li>
+    <li>不做"无聊交易"——没机会就不交易，空仓也是一种策略</li>
+    <li>不忘记记录每一笔交易</li>
+  </ul>
+</div>
+
+<!-- ============ TOOLS ============ -->
+<div class="section" id="tools">
+  <h2>工具清单与配置指南</h2>
+
+  <table>
+    <tr>
+      <th>工具</th>
+      <th>用途</th>
+      <th>URL</th>
+      <th>费用</th>
+      <th>优先级</th>
+    </tr>
+    <tr>
+      <td>Polymarket</td>
+      <td>交易平台本体</td>
+      <td>polymarket.com</td>
+      <td>免费</td>
+      <td>⭐⭐⭐</td>
+    </tr>
+    <tr>
+      <td>XTracker</td>
+      <td>马斯克推文实时计数</td>
+      <td>xtracker.polymarket.com</td>
+      <td>免费</td>
+      <td>⭐⭐⭐</td>
+    </tr>
+    <tr>
+      <td>PredScope</td>
+      <td>全市场统计概览，按概率/交易量筛选</td>
+      <td>predscope.com/stats</td>
+      <td>免费</td>
+      <td>⭐⭐⭐</td>
+    </tr>
+    <tr>
+      <td>Arkham Intel</td>
+      <td>鲸鱼追踪 + 排行榜 + 钱包分析</td>
+      <td>arkhamintelligence.com</td>
+      <td>免费</td>
+      <td>⭐⭐⭐</td>
+    </tr>
+    <tr>
+      <td>Polywhaler</td>
+      <td>$10K+ 交易实时推送</td>
+      <td>polywhaler.com</td>
+      <td>免费</td>
+      <td>⭐⭐⭐</td>
+    </tr>
+    <tr>
+      <td>UrbanPoly</td>
+      <td>热门市场 + 被低估市场扫描</td>
+      <td>urbanpoly.com</td>
+      <td>免费</td>
+      <td>⭐⭐</td>
+    </tr>
+    <tr>
+      <td>Kiyotaka.ai</td>
+      <td>AI 驱动聪明钱检测</td>
+      <td>chart.kiyotaka.ai</td>
+      <td>免费层</td>
+      <td>⭐⭐</td>
+    </tr>
+    <tr>
+      <td>Kreo</td>
+      <td>一体化分析 + 跟单自动化</td>
+      <td>kreo.bet</td>
+      <td>免费层/付费</td>
+      <td>⭐</td>
+    </tr>
+    <tr>
+      <td>Poly-Sim Kelly Calculator</td>
+      <td>Kelly 公式仓位计算器</td>
+      <td>poly-sim.com/calculators/kelly-criterion.html</td>
+      <td>免费</td>
+      <td>⭐⭐</td>
+    </tr>
+    <tr>
+      <td>Dune Analytics</td>
+      <td>链上数据自定义查询</td>
+      <td>dune.com</td>
+      <td>免费</td>
+      <td>⭐</td>
+    </tr>
+    <tr>
+      <td>Bubblemaps</td>
+      <td>钱包聚类可视化，识别关联钱包</td>
+      <td>bubblemaps.io</td>
+      <td>免费</td>
+      <td>⭐</td>
+    </tr>
+  </table>
+
+  <h3>工具配置优先级</h3>
+  <div class="workflow-step">
+    <div class="num">1</div>
+    <div class="content"><strong>Day 1</strong>：注册 Polymarket 账户 + 充值 USDC（Polygon 网络）</div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">2</div>
+    <div class="content"><strong>Day 1</strong>：收藏 PredScope + XTracker + UrbanPoly</div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">3</div>
+    <div class="content"><strong>Week 1</strong>：注册 Arkham Intel，浏览 Polymarket 排行榜</div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">4</div>
+    <div class="content"><strong>Week 2</strong>：启用 Polywhaler 浏览器推送通知 + Telegram 频道</div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">5</div>
+    <div class="content"><strong>Phase 2</strong>：注册 Kiyotaka.ai，建立聪明钱观察列表</div>
+  </div>
+  <div class="workflow-step">
+    <div class="num">6</div>
+    <div class="content"><strong>Phase 3</strong>：配置 Simmer SDK 自动化推文交易 + Kreo 跟单</div>
+  </div>
+</div>
+
+<!-- ============ JOURNAL TEMPLATE ============ -->
+<div class="section" id="journal">
+  <h2>交易日志模板</h2>
+
+  <p>每一笔交易都必须记录。这是你进步的核心工具。建议用 Google Sheets / Notion 建立以下表格：</p>
+
+  <h3>交易记录表</h3>
+  <table>
+    <tr>
+      <th>字段</th>
+      <th>说明</th>
+      <th>示例</th>
+    </tr>
+    <tr>
+      <td>日期</td>
+      <td>交易日期</td>
+      <td>2026-08-12</td>
+    </tr>
+    <tr>
+      <td>市场名称</td>
+      <td>Polymarket 市场标题</td>
+      <td>LeBron 退役 before Oct 20</td>
+    </tr>
+    <tr>
+      <td>方向</td>
+      <td>YES / NO</td>
+      <td>NO</td>
+    </tr>
+    <tr>
+      <td>买入价</td>
+      <td>每股价格</td>
+      <td>$0.99</td>
+    </tr>
+    <tr>
+      <td>数量</td>
+      <td>股数</td>
+      <td>100</td>
+    </tr>
+    <tr>
+      <td>投入金额</td>
+      <td>买入价 × 数量</td>
+      <td>$99.00</td>
+    </tr>
+    <tr>
+      <td>仓位占比</td>
+      <td>投入 / 总资金</td>
+      <td>4.95%</td>
+    </tr>
+    <tr>
+      <td>到期日</td>
+      <td>市场结算日期</td>
+      <td>2026-10-20</td>
+    </tr>
+    <tr>
+      <td>策略类型</td>
+      <td>A/B/C/D/E/F</td>
+      <td>A</td>
+    </tr>
+    <tr>
+      <td>我的概率估算</td>
+      <td>入场前的独立判断</td>
+      <td>NO 99.5%</td>
+    </tr>
+    <tr>
+      <td>入场理由</td>
+      <td>为什么入场（1-2 句话）</td>
+      <td>LeBron 已确认下赛季续约，退役概率极低</td>
+    </tr>
+    <tr>
+      <td>结算结果</td>
+      <td>WIN / LOSS / 未结算</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>收益/亏损</td>
+      <td>结算后填写</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>复盘笔记</td>
+      <td>哪里做对了/做错了</td>
+      <td>—</td>
+    </tr>
+  </table>
+
+  <h3>周复盘模板</h3>
+  <table>
+    <tr>
+      <th>指标</th>
+      <th>本周</th>
+      <th>上周</th>
+      <th>趋势</th>
+    </tr>
+    <tr>
+      <td>交易笔数</td>
+      <td>___</td>
+      <td>___</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>胜率</td>
+      <td>___%</td>
+      <td>___%</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>总收益</td>
+      <td>$___</td>
+      <td>$___</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>回报率</td>
+      <td>___%</td>
+      <td>___%</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>最大回撤</td>
+      <td>___%</td>
+      <td>___%</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>最佳交易</td>
+      <td colspan="3">___</td>
+    </tr>
+    <tr>
+      <td>最差交易</td>
+      <td colspan="3">___</td>
+    </tr>
+    <tr>
+      <td>本周学到的教训</td>
+      <td colspan="3">___</td>
+    </tr>
+    <tr>
+      <td>下周调整</td>
+      <td colspan="3">___</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============ CURRENT MARKETS ============ -->
+<div class="section" id="markets">
+  <h2>当前具体市场机会清单（2026.08.12 实时数据）</h2>
+
+  <div class="callout callout-warn">
+    <strong>数据时效</strong>：以下数据截至 2026 年 8 月 12 日。Polymarket 价格实时变动，使用前务必在平台上确认当前价格。
+  </div>
+
+  <h3>策略 A 适用：临期高确定性市场</h3>
+  <table>
+    <tr>
+      <th>市场</th>
+      <th>方向</th>
+      <th>概率</th>
+      <th>交易量</th>
+      <th>到期日</th>
+      <th>评估</th>
+    </tr>
+    <tr>
+      <td>LeBron James 退役</td>
+      <td>NO</td>
+      <td>99%</td>
+      <td>$123/24h</td>
+      <td>10/20</td>
+      <td>⚠️ 流动性偏低，距到期远（69天），年化低</td>
+    </tr>
+    <tr>
+      <td>Stephen Curry 离开勇士</td>
+      <td>NO</td>
+      <td>96%</td>
+      <td>$28/24h</td>
+      <td>10/21</td>
+      <td>⚠️ 流动性极低，不推荐</td>
+    </tr>
+    <tr>
+      <td>Anthony Davis 被交易</td>
+      <td>NO</td>
+      <td>96%</td>
+      <td>$6K</td>
+      <td>10/22</td>
+      <td>🟡 流动性尚可，但 71 天到期年化偏低</td>
+    </tr>
+    <tr>
+      <td>Gemini 4.0 by Aug 31</td>
+      <td>NO</td>
+      <td>99%</td>
+      <td>$188K</td>
+      <td>8/31</td>
+      <td>🟢 19天到期，流动性好，年化约 19%</td>
+    </tr>
+    <tr>
+      <td>OpenAI Astra by Oct 31</td>
+      <td>NO</td>
+      <td>95%</td>
+      <td>$148K</td>
+      <td>10/31</td>
+      <td>🟡 80天到期，年化偏低，但流动性好</td>
+    </tr>
+    <tr>
+      <td>Moonshot 最佳中国AI公司</td>
+      <td>NO</td>
+      <td>97%</td>
+      <td>$442K</td>
+      <td>8/31</td>
+      <td>🟢 19天，高流动性，年化约 58%</td>
+    </tr>
+    <tr>
+      <td>Grok 4.6 by Aug 21</td>
+      <td>NO</td>
+      <td>92%</td>
+      <td>$148K</td>
+      <td>8/21</td>
+      <td>🟡 9天到期，但 NO 仅 92%，确定性不够高</td>
+    </tr>
+    <tr>
+      <td>Hormuz 交通 8/15 恢复</td>
+      <td>NO</td>
+      <td>97%</td>
+      <td>$7M</td>
+      <td>8/15</td>
+      <td>🟢 3天到期！极高流动性，年化约 376%<br>但地缘政治黑天鹅风险高</td>
+    </tr>
+  </table>
+
+  <div class="callout callout-danger">
+    <strong>⚠️ 地缘政治市场特别提醒</strong>：伊朗/霍尔木兹海峡相关市场虽然 NO 概率高、流动性极大（$7M+），但黑天鹅风险也最高。一条突发新闻就可能翻转结果。建议：<strong>仅投入仓位上限的 50%</strong>（即 2.5% 而非 5%），且不在此类市场持有过夜。
+  </div>
+
+  <h3>策略 B 适用：马斯克推文市场</h3>
+  <table>
+    <tr>
+      <th>周期</th>
+      <th>交易量</th>
+      <th>到期日</th>
+      <th>状态</th>
+    </tr>
+    <tr>
+      <td>8/7 - 8/14</td>
+      <td>$528K/24h</td>
+      <td>8/14 12:00 ET</td>
+      <td>即将结算，观望</td>
+    </tr>
+    <tr>
+      <td>8/14 - 8/21</td>
+      <td>$85K/24h</td>
+      <td>8/21 12:00 ET</td>
+      <td>🟢 本周可交易的新周期</td>
+    </tr>
+  </table>
+
+  <p><strong>操作建议</strong>：8/14 新周期开始后，周一打开 xtracker 查看 projected 总数，在周一/周二入场目标桶。</p>
+
+  <h3>策略 D 适用：方向性交易候选市场</h3>
+  <table>
+    <tr>
+      <th>市场</th>
+      <th>当前赔率</th>
+      <th>交易量</th>
+      <th>适合人群</th>
+    </tr>
+    <tr>
+      <td>2028 民主党总统候选人</td>
+      <td>多人竞争，头部 18%</td>
+      <td>$1,256M</td>
+      <td>深度跟踪美国政治者</td>
+    </tr>
+    <tr>
+      <td>美联储 9 月利率决议</td>
+      <td>上调25bp 57% / 不变 41%</td>
+      <td>$11M</td>
+      <td>关注宏观经济者</td>
+    </tr>
+    <tr>
+      <td>NVIDIA 月末最大市值</td>
+      <td>YES 93%</td>
+      <td>$2M</td>
+      <td>关注科技股者</td>
+    </tr>
+    <tr>
+      <td>Anthropic 最佳AI模型 8月</td>
+      <td>YES 95%</td>
+      <td>$1M</td>
+      <td>关注AI行业者</td>
+    </tr>
+    <tr>
+      <td>GTA 6 再次延期</td>
+      <td>YES 10%</td>
+      <td>$638K</td>
+      <td>关注游戏行业者</td>
+    </tr>
+    <tr>
+      <td>巴西总统选举</td>
+      <td>卢拉 66%</td>
+      <td>$122M</td>
+      <td>关注拉美政治者</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============ 20 RULES ============ -->
+<div class="section" id="rules">
+  <h2>20 条铁律</h2>
+
+  <ol>
+    <li><strong>只用限价单</strong>，0% 手续费。市价单是给急的人准备的，急的人亏钱。</li>
+    <li><strong>单笔 ≤ 5%</strong> 仓位，新手期 ≤ 2%。这条规则救过无数人的账户。</li>
+    <li><strong>保持 30% 现金</strong>。没有现金就抓不到新机会，机会永远在你不准备的时候来。</li>
+    <li><strong>同时持 6-10+ 个不相关仓位</strong>。相关性是隐形杀手——同类的市场一起涨一起跌。</li>
+    <li><strong>只交易量 > $10K 的市场</strong>。低流动性市场进得去出不来。</li>
+    <li><strong>在看价格前写下你的概率估算</strong>。避免锚定效应。</li>
+    <li><strong>读完整结算规则</strong>再下单。不理解的结算规则 = 赌博。</li>
+    <li><strong>记录每一笔交易</strong>。不记录的交易等于白做，因为你无法从中学到东西。</li>
+    <li><strong>亏损后停止 1 小时</strong>再交易。Tilt 交易是账户的头号杀手。</li>
+    <li><strong>每周复盘</strong>。胜率、收益、错误、调整。进步来自复盘，不来自交易。</li>
+    <li><strong>不用借来的钱</strong>，不用生活必需的钱。只用你能完全承受亏损的资金。</li>
+    <li><strong>不加仓亏损仓位</strong>，除非有新的信息增强了你的论点。</li>
+    <li><strong>设回撤停止线</strong>：-20% 减半仓位，-30% 停止一周。</li>
+    <li><strong>资金翻倍后提取本金</strong>。之后你就是在用利润玩，心理压力大幅降低。</li>
+    <li><strong>不追热点</strong>。FOMO 入场是亏钱的第二大原因（仅次于 Tilt）。</li>
+    <li><strong>关注价差</strong>：如果买卖价差 > 4 cents，这不是一个好的入场市场。</li>
+    <li><strong>提前退出比持有到期更安全</strong>，如果出现可能改变结果的消息。</li>
+    <li><strong>聪明钱是确认信号，不是交易理由</strong>。先有自己的判断，再参考他们的。</li>
+    <li><strong>地缘政治市场降低仓位</strong>。黑天鹅风险最高，一条新闻翻转一切。</li>
+    <li><strong>无聊是好事</strong>。没有好机会就不交易。空仓也是一种策略。耐心等待 edge 出现。</li>
+  </ol>
+
+  <div class="divider"></div>
+
+  <div class="highlight-box">
+    <h3 style="margin-top:0">最终忠告</h3>
+    <p>预测市场的本质是<strong>概率游戏</strong>，不是赌博。长期盈利的人靠的不是运气，而是：</p>
+    <ul>
+      <li><strong>信息优势</strong>——在你最懂的领域交易</li>
+      <li><strong>仓位纪律</strong>——永远不满仓，永远有现金</li>
+      <li><strong>持续复盘</strong>——从每笔交易中学习</li>
+      <li><strong>情绪控制</strong>——不追涨、不杀跌、不 Tilt</li>
+    </ul>
+    <p style="margin-top:12px">从 Phase 1 开始，用 $200-500 小资金练手。当你能连续 50 笔交易保持正 EV 时，再加大资金。慢慢来，比较快。</p>
+  </div>
+</div>
+
+<div style="text-align:center; padding: 24px; color: var(--text-dim); font-size: 13px;">
+  Polymarket 完整赚钱策略执行手册 · 基于 2026.08.12 实时数据编制<br>
+  ⚠️ 本文档仅供研究参考，不构成投资建议。预测市场有风险，参与需谨慎。
+</div>
+
+</div>
+</body>
+</html>
