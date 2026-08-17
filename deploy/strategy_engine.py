@@ -809,6 +809,11 @@ class EnhancedScanner:
                 # For expiry yield, the market price IS our probability estimate
                 # But we adjust based on time remaining and market type
                 est_prob = price
+                # Win-rate lever: the closer to resolution, the less time there
+                # is for the price to flip — so require even higher certainty
+                # within the last ~6 hours.
+                if days < 0.25 and price < 0.96:
+                    continue
                 # Small adjustment: markets very close to expiry with high prob
                 # are almost certain
                 if days < 0.5 and price > 0.95:

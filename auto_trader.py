@@ -102,6 +102,7 @@ DEFAULT_CONFIG = {
     "maker_bias_pct": 0.002, # 做市偏向：买单挂在 ask 下方该比例（0.002=挂低0.2%做市吃价差，研究证实做市是唯一稳健edge）
     "min_liquidity": 10,     # 跳过流动性分低于此的机会（研究：流动性差=吃单成本高）
     "expiry_annualized_floor": 20,  # ExpiryYield 要求的年化%下限（研究：临期理财真实但温和）
+    "risk_level": 5,         # 交易风格 1-10（1极保守 → 10极激进），一键套用参数预设
     "trading_mode": "dry_run",
     "strategy_expiry": True,
     "strategy_arb": True,
@@ -142,6 +143,62 @@ class ConfigStore:
         except Exception as e:
             log.error(f"配置保存失败：{e}")
             return False
+
+
+# ============================================================
+#  Risk Level Presets (1=极保守 → 10=极激进)
+#  Each level = one full trading mode. Higher risk → larger position
+#  sizes, lower entry thresholds, more strategies, wider stops — higher
+#  expected return but more drawdown risk.
+# ============================================================
+
+RISK_NAMES = {
+    1: "极保守", 2: "保守", 3: "偏保守", 4: "稳健偏保守", 5: "平衡",
+    6: "稳健偏进取", 7: "进取", 8: "积极", 9: "激进", 10: "极激进",
+}
+
+RISK_PRESETS = {
+    1: dict(max_position_pct=0.02, max_positions=3, max_daily_trades=3,
+            min_confidence=88, min_ev_pct=4.0, strategy_directional=False,
+            maker_bias_pct=0.003, expiry_annualized_floor=50),
+    2: dict(max_position_pct=0.03, max_positions=4, max_daily_trades=4,
+            min_confidence=86, min_ev_pct=3.5, strategy_directional=False,
+            maker_bias_pct=0.003, expiry_annualized_floor=45),
+    3: dict(max_position_pct=0.04, max_positions=5, max_daily_trades=5,
+            min_confidence=84, min_ev_pct=3.0, strategy_directional=False,
+            maker_bias_pct=0.002, expiry_annualized_floor=40),
+    4: dict(max_position_pct=0.05, max_positions=6, max_daily_trades=6,
+            min_confidence=82, min_ev_pct=2.5, strategy_directional=False,
+            maker_bias_pct=0.002, expiry_annualized_floor=35),
+    5: dict(max_position_pct=0.05, max_positions=10, max_daily_trades=8,
+            min_confidence=75, min_ev_pct=1.5, strategy_directional=False,
+            maker_bias_pct=0.002, expiry_annualized_floor=20),
+    6: dict(max_position_pct=0.06, max_positions=12, max_daily_trades=10,
+            min_confidence=72, min_ev_pct=1.2, strategy_directional=False,
+            maker_bias_pct=0.002, expiry_annualized_floor=15),
+    7: dict(max_position_pct=0.08, max_positions=15, max_daily_trades=12,
+            min_confidence=68, min_ev_pct=1.0, strategy_directional=True,
+            maker_bias_pct=0.001, expiry_annualized_floor=10),
+    8: dict(max_position_pct=0.10, max_positions=18, max_daily_trades=15,
+            min_confidence=65, min_ev_pct=0.8, strategy_directional=True,
+            maker_bias_pct=0.001, expiry_annualized_floor=8),
+    9: dict(max_position_pct=0.12, max_positions=22, max_daily_trades=20,
+            min_confidence=62, min_ev_pct=0.6, strategy_directional=True,
+            maker_bias_pct=0.001, expiry_annualized_floor=5),
+    10: dict(max_position_pct=0.15, max_positions=30, max_daily_trades=30,
+             min_confidence=60, min_ev_pct=0.5, strategy_directional=True,
+             maker_bias_pct=0.0, expiry_annualized_floor=3),
+}
+
+
+def apply_risk_presets(cfg: dict, level: int) -> dict:
+    """Overlay the given risk level's parameter presets onto the config."""
+    level = max(1, min(10, int(level)))
+    for k, v in RISK_PRESETS[level].items():
+        cfg[k] = v
+    cfg["risk_level"] = level
+    return cfg
+
 
 # ============================================================
 #  Logging
@@ -358,6 +415,7 @@ class TradingConfig:
     maker_bias_pct = 0.002
     min_liquidity = 10
     expiry_annualized_floor = 20
+    risk_level = 5
     telegram_token = ""
     telegram_chat_id = ""
     strategy_expiry = True
@@ -390,6 +448,7 @@ class TradingConfig:
         cls.maker_bias_pct = float(cfg.get("maker_bias_pct", 0.0))
         cls.min_liquidity = int(cfg.get("min_liquidity", 10))
         cls.expiry_annualized_floor = float(cfg.get("expiry_annualized_floor", 20))
+        cls.risk_level = int(cfg.get("risk_level", 5))
         cls.trading_mode = cfg["trading_mode"]
         cls.strategy_expiry = bool(cfg["strategy_expiry"])
         cls.strategy_arb = bool(cfg["strategy_arb"])
@@ -2060,6 +2119,11 @@ def api_config_set():
             if k == "bankroll_usdc":
                 bankroll_changed = abs(float(v) - old_bankroll) > 1e-9
 
+    # Risk level = one-click trading mode: overlay the parameter presets
+    # (overrides individually-tuned fields with the mode's defaults).
+    if "risk_level" in data:
+        apply_risk_presets(cfg, data["risk_level"])
+
     if not ConfigStore.save(cfg):
         return jsonify({"success": False, "error": "配置保存失败"}), 500
 
@@ -2331,6 +2395,37 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   --log-bg: #f6f8fa;
   --modal-overlay: rgba(0,0,0,0.4);
   --gradient-header: linear-gradient(135deg, #ffffff 0%, #f6f8fa 100%);
+}
+
+/* Hermès theme — deep warm charcoal + orange/gold accents + cream text */
+[data-theme="hermes"] {
+  --bg: #16120d;
+  --bg2: #1e1812;
+  --card: #241d15;
+  --card-hover: #2b2318;
+  --border: #3b3326;
+  --border-light: #2c251b;
+  --text: #f1e7d6;
+  --text-secondary: #d3c3a8;
+  --muted: #a3957a;
+  --primary: #ff7a00;
+  --primary-d: #e06a00;
+  --primary-l: rgba(255,122,0,0.14);
+  --green: #9db26a;
+  --green-l: rgba(157,178,106,0.14);
+  --red: #d4706f;
+  --red-l: rgba(212,112,111,0.14);
+  --orange: #ffa03a;
+  --orange-l: rgba(255,160,58,0.14);
+  --purple: #c49a6c;
+  --purple-l: rgba(196,154,108,0.14);
+  --teal: #d4a017;
+  --teal-l: rgba(212,160,23,0.14);
+  --shadow: 0 2px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
+  --log-bg: #16120d;
+  --modal-overlay: rgba(0,0,0,0.75);
+  --gradient-header: linear-gradient(135deg, #2a2118 0%, #16120d 100%);
 }
 
 /* Auto theme: follow system */
@@ -2654,6 +2749,13 @@ body {
 .net-dot.bad { background: var(--red); box-shadow: 0 0 6px var(--red); }
 /* card hover lift */
 .grid .card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+/* active filter button */
+.btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn.active:hover { background: var(--primary-d); }
+/* position detail modal rows */
+.detail-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 14px; }
+.detail-grid .k { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.detail-grid .v { word-break: break-all; }
 </style>
 </head>
 <body>
@@ -2668,6 +2770,7 @@ body {
     <div class="theme-switch">
       <button class="theme-btn" onclick="setTheme('light')" title="亮色" data-theme-btn="light">&#9728;</button>
       <button class="theme-btn" onclick="setTheme('dark')" title="暗色" data-theme-btn="dark">&#9789;</button>
+      <button class="theme-btn" onclick="setTheme('hermes')" title="Hermès 橙金" data-theme-btn="hermes">&#9819;</button>
       <button class="theme-btn active" onclick="setTheme('auto')" title="跟随系统" data-theme-btn="auto">&#9881;</button>
     </div>
     <button id="setupBtn" class="btn btn-ghost" onclick="showSetup()">配置</button>
@@ -2707,6 +2810,23 @@ body {
       <button class="btn btn-ghost" onclick="manualScan()" id="scanBtn" style="margin-left:auto;font-size:13px;padding:6px 14px;">手动扫描</button>
       <span id="lastScanTime" style="font-size:12px;color:var(--muted);"></span>
     </div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+      <select id="oppSort" onchange="renderOpps()" style="padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+        <option value="ev">按 EV 排序</option>
+        <option value="conf">按置信度排序</option>
+        <option value="price">按价格排序</option>
+      </select>
+      <select id="oppStrat" onchange="renderOpps()" style="padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+        <option value="">全部策略</option>
+        <option value="ExpiryYield+">临期理财</option>
+        <option value="Arbitrage+">套利</option>
+        <option value="TweetArb+">推文套利</option>
+        <option value="Momentum">动量</option>
+        <option value="MeanReversion">均值回归</option>
+        <option value="SmartMoney">聪明钱</option>
+      </select>
+      <span style="font-size:12px;color:var(--muted);" id="oppFiltered"></span>
+    </div>
     <div class="grid" id="oppGrid"></div>
   </div>
 
@@ -2714,7 +2834,13 @@ body {
   <div id="tab-positions" style="display:none;">
     <div class="section-title">
       持仓管理
+      <span id="posCount" style="font-size:12px;color:var(--muted);font-weight:400;"></span>
       <button class="btn btn-ghost" onclick="exportPositionsCSV()" style="margin-left:auto;font-size:13px;padding:6px 14px;">导出 CSV</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <button class="btn btn-ghost active" data-pos-filter="all" onclick="setPosFilter('all')" style="font-size:12px;padding:5px 14px;">全部</button>
+      <button class="btn btn-ghost" data-pos-filter="open" onclick="setPosFilter('open')" style="font-size:12px;padding:5px 14px;">进行中</button>
+      <button class="btn btn-ghost" data-pos-filter="closed" onclick="setPosFilter('closed')" style="font-size:12px;padding:5px 14px;">已完成</button>
     </div>
     <table class="table" id="posTable">
       <thead><tr><th>策略</th><th>市场</th><th>方向</th><th>入场价</th><th>数量</th><th>成本</th><th>置信度</th><th>状态</th><th>盈亏</th><th>操作</th></tr></thead>
@@ -2767,7 +2893,11 @@ body {
 
   <!-- Tab: Logs -->
   <div id="tab-logs" style="display:none;">
-    <div class="section-title">实时运行日志</div>
+    <div class="section-title">实时运行日志
+      <label style="margin-left:auto;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="logAutoScroll" checked onchange="toggleLogScroll()" style="accent-color:var(--primary);cursor:pointer;"> 自动滚动
+      </label>
+    </div>
     <div class="log-box" id="logBox"></div>
   </div>
 </div>
@@ -2917,6 +3047,13 @@ body {
       <label>临期年化下限%<span class="field-hint">ExpiryYield 要求的最低年化收益（默认 20）</span></label>
       <input type="number" id="cfgAnnualFloor" value="20" min="5" step="5" style="width:140px;">
     </div>
+    <div class="field-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px;">
+      <label>🎚️ 交易风格（风险偏好 1-10）<span class="field-hint" id="riskHint">档位 5/10：越激进→仓位越大/门槛越低/策略越多，收益越高但回撤越大</span></label>
+      <div style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-end;">
+        <input type="range" id="cfgRisk" min="1" max="10" step="1" value="5" oninput="updateRiskLabel()" style="width:180px;accent-color:var(--primary);">
+        <span id="riskLabel" style="font-weight:800;color:var(--primary);min-width:64px;text-align:right;">平衡</span>
+      </div>
+    </div>
     <div class="field-row">
       <label>过滤电竞/比赛市场<span class="field-hint">排除 Dota2/CS/LoL 等难预测市场，提高胜率</span></label>
       <label class="switch"><input type="checkbox" id="cfgFilterSpec" checked><span class="slider"></span></label>
@@ -2946,6 +3083,18 @@ body {
         <button class="btn btn-ghost" onclick="closeModal('settingsModal')">取消</button>
         <button class="btn btn-primary" onclick="saveSettings()">保存配置</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Position Detail Modal -->
+<div id="posModal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h2 id="posModalTitle">持仓详情</h2>
+    <div class="detail-grid" id="posModalBody"></div>
+    <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="closeModal('posModal')">关闭</button>
+      <button class="btn btn-danger" id="posModalSell" onclick="sellPosition(currentViewPosId)" style="display:none;">卖出该持仓</button>
     </div>
   </div>
 </div>
@@ -3035,7 +3184,9 @@ function updateScanCountdown() {
   const fill = document.getElementById('scanProgressFill');
   const sub = document.getElementById('statNextScanSub');
   if (!el) return;
-  if (lastAction === 'sleeping' && sleepRemaining > 0) {
+  // Running engine with time remaining → show the live countdown (works even
+  // during the brief action transitions between cycles).
+  if (engineRunning && sleepRemaining > 0) {
     el.textContent = fmtCountdown(sleepRemaining);
     if (fill) fill.style.width = (sleepRemaining / (scanInterval || 300) * 100) + '%';
     if (sub) sub.textContent = '距离下次扫描';
@@ -3046,11 +3197,12 @@ function updateScanCountdown() {
     el.textContent = '扫描中';
     if (fill) fill.style.width = '100%';
     if (sub) sub.textContent = '正在执行扫描';
-  } else {
-    el.textContent = '--:--';
-    if (fill) fill.style.width = '100%';
-    if (sub) sub.textContent = '等待启动';
+    return;
   }
+  // Engine idle / not running — show a clear state instead of a bare "--:--"
+  el.textContent = '--:--';
+  if (fill) fill.style.width = '100%';
+  if (sub) sub.textContent = lastAction === '' ? '等待授权启动' : (engineRunning ? '等待下一轮' : '待启动');
 }
 
 // ===== Theme System =====
@@ -3068,6 +3220,8 @@ function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', 'light');
   } else if (theme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
+  } else if (theme === 'hermes') {
+    document.documentElement.setAttribute('data-theme', 'hermes');
   } else {
     // auto: remove attribute to let @media handle it
     document.documentElement.removeAttribute('data-theme');
@@ -3252,20 +3406,37 @@ function updateStats(s) {
 
 // ===== Opportunities =====
 let lastOppsKey = '';
+let allOpps = [];
 function updateOpportunities(opps) {
-  const grid = document.getElementById('oppGrid');
-  if (!grid) return;
   // Skip re-render if the data didn't actually change — otherwise the 5s
   // dashboard refresh replaces innerHTML every time and causes a visible
   // flicker.
   const key = JSON.stringify(opps);
   if (key === lastOppsKey) return;
   lastOppsKey = key;
-  if (!opps || opps.length === 0) {
-    grid.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">等待扫描发现机会...</div><div class="empty-hint">增强引擎正在分析订单簿、价格历史和聪明钱信号<br>点击下方按钮立即扫描一次</div><button class="btn btn-primary" onclick="manualScan()">立即扫描</button></div>';
+  allOpps = opps || [];
+  renderOpps();
+}
+function renderOpps() {
+  const grid = document.getElementById('oppGrid');
+  if (!grid) return;
+  // Apply strategy filter + sort (user-initiated via dropdowns)
+  let list = (allOpps || []).slice();
+  const stratEl = document.getElementById('oppStrat');
+  const stratFilter = stratEl ? stratEl.value : '';
+  if (stratFilter) list = list.filter(o => o.strategy === stratFilter);
+  const sortEl = document.getElementById('oppSort');
+  const sortBy = sortEl ? sortEl.value : 'ev';
+  if (sortBy === 'conf') list.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+  else if (sortBy === 'price') list.sort((a, b) => (a.price || 0) - (b.price || 0));
+  else list.sort((a, b) => ((b.ev && b.ev.ev_pct) || 0) - ((a.ev && a.ev.ev_pct) || 0));
+  const fEl = document.getElementById('oppFiltered');
+  if (fEl) fEl.textContent = `显示 ${list.length} / 共 ${allOpps.length} 个机会`;
+  if (list.length === 0) {
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">暂无匹配的机会</div><div class="empty-hint">可切换策略筛选或点击手动扫描</div><button class="btn btn-primary" onclick="manualScan()">立即扫描</button></div>';
     return;
   }
-  grid.innerHTML = opps.slice(0, 30).map(o => {
+  grid.innerHTML = list.slice(0, 30).map(o => {
     const stratMap = {
       'ExpiryYield+': 'tag-expiry', 'ExpiryYield': 'tag-expiry',
       'Arbitrage+': 'tag-arb', 'Arbitrage': 'tag-arb',
@@ -3338,10 +3509,64 @@ async function sellPosition(id) {
   } catch(e) { showToast('网络错误: ' + e, 'error'); }
 }
 
+// View full position detail in a modal (fixes "market name truncated" issue)
+let currentViewPosId = null;
+function viewPosition(id) {
+  const p = allPositions.find(x => x.id === id);
+  if (!p) return;
+  currentViewPosId = id;
+  const stMap = {'open':'持仓中','won':'已赢','lost':'已输','closed_tp':'止盈','closed_take_profit':'止盈','closed_trailing_stop':'移动止损','closed_stop_loss':'止损','closed_manual':'手动平仓'};
+  const st = stMap[p.status] || p.status;
+  const pnl = p.pnl_usdc || 0;
+  const sign = pnl >= 0 ? '+' : '';
+  const analysis = p.analysis ? JSON.stringify(p.analysis).slice(0, 400) : '-';
+  const rows = [
+    ['市场', p.question],
+    ['策略', strategyCN(p.strategy)],
+    ['方向', p.side || '-'],
+    ['状态', st],
+    ['入场价', '$' + (p.entry_price || 0).toFixed(4)],
+    ['出场价', p.exit_price ? '$' + p.exit_price.toFixed(4) : '-'],
+    ['数量', fmtNum(p.shares || 0)],
+    ['成本', fmtMoney(p.cost_usdc || 0)],
+    ['盈亏', pnl !== 0 ? sign + '$' + pnl.toFixed(2) : '-'],
+    ['置信度', p.confidence ? p.confidence.toFixed(0) : '-'],
+    ['到期', p.end_date ? fmtDt(p.end_date) + '（' + p.end_date.slice(0, 16).replace('T',' ') + '）' : '未设到期'],
+    ['开仓', p.opened_at ? fmtDt(p.opened_at) + '（' + p.opened_at.slice(0, 10) + '）' : '-'],
+    ['平仓', p.closed_at ? fmtDt(p.closed_at) : '-'],
+    ['分析', analysis],
+    ['Token', p.token_id ? p.token_id.slice(0, 24) + '…' : '-'],
+  ];
+  document.getElementById('posModalBody').innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');
+  const sellBtn = document.getElementById('posModalSell');
+  sellBtn.style.display = (p.status === 'open' && !['Arbitrage+', 'Arbitrage'].includes(p.strategy)) ? '' : 'none';
+  document.getElementById('posModalTitle').textContent = '持仓详情';
+  document.getElementById('posModal').style.display = 'flex';
+}
+
+let allPositions = [];
+let posFilter = 'all';
+function setPosFilter(f) {
+  posFilter = f;
+  document.querySelectorAll('[data-pos-filter]').forEach(b => b.classList.toggle('active', b.dataset.posFilter === f));
+  renderPositions();
+}
 function updatePositions(positions) {
+  allPositions = positions || [];
+  renderPositions();
+}
+function renderPositions() {
   const body = document.getElementById('posBody');
+  if (!body) return;
+  let positions = allPositions;
+  if (posFilter === 'open') positions = positions.filter(p => p.status === 'open');
+  else if (posFilter === 'closed') positions = positions.filter(p => p.status !== 'open');
+  const openN = allPositions.filter(p => p.status === 'open').length;
+  const closedN = allPositions.length - openN;
+  const countEl = document.getElementById('posCount');
+  if (countEl) countEl.textContent = `共 ${allPositions.length}（进行中 ${openN}｜已完成 ${closedN}）`;
   if (!positions || positions.length === 0) {
-    body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:40px;">暂无持仓</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:40px;">暂无持仓</td></tr>';
     return;
   }
   body.innerHTML = positions.map(p => {
@@ -3366,8 +3591,8 @@ function updatePositions(positions) {
     const confStr = p.confidence ? `<span style="font-size:11px;color:${p.confidence>=75?'var(--green)':'var(--orange)'};">${p.confidence.toFixed(0)}</span>` : '-';
     return `<tr>
       <td><span class="tag ${tagClass}">${strategyCN(p.strategy)}</span></td>
-      <td style="max-width:240px;">
-        <div title="${p.question}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.question}</div>
+      <td>
+        <div title="${p.question}" onclick="viewPosition('${p.id}')" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--text);">${p.question}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.end_date ? '到期 ' + fmtDt(p.end_date) : '未设到期'}｜开仓 ${fmtDt(p.opened_at)}</div>
       </td>
       <td>${p.side || '-'}</td>
@@ -3620,10 +3845,15 @@ function updateStrategyBreakdown(breakdown) {
     return;
   }
   el.innerHTML = `<table class="table">
-    <thead><tr><th>策略</th><th>交易次数</th><th>胜</th><th>负</th><th>胜率</th><th>总盈亏</th><th>持仓投入</th></tr></thead>
+    <thead><tr><th>策略</th><th>交易次数</th><th>胜</th><th>负</th><th>胜率</th><th>总盈亏</th><th>持仓投入</th><th>健康度</th></tr></thead>
     <tbody>
     ${breakdown.map(b => {
       const pnlColor = b.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+      let health, hColor;
+      if (b.trades < 5) { health = '样本不足'; hColor = 'var(--muted)'; }
+      else if (b.win_rate >= 55) { health = '健康'; hColor = 'var(--green)'; }
+      else if (b.win_rate >= 40) { health = '一般'; hColor = 'var(--orange)'; }
+      else { health = '待观察'; hColor = 'var(--red)'; }
       return `<tr>
         <td><span class="tag ${(b.strategy||'').includes('Expiry')?'tag-expiry':(b.strategy||'').includes('Arb')?'tag-arb':(b.strategy||'').includes('Tweet')?'tag-tweet':(b.strategy||'').includes('Momentum')?'tag-momentum':(b.strategy||'').includes('Mean')?'tag-mr':'tag-sm'}">${strategyCN(b.strategy)}</span></td>
         <td>${fmtNum(b.trades)}</td>
@@ -3632,6 +3862,7 @@ function updateStrategyBreakdown(breakdown) {
         <td>${fmtPct(b.win_rate, 0)}</td>
         <td style="color:${pnlColor};font-weight:700;">${fmtSigned(b.pnl)}</td>
         <td>${fmtMoney(b.exposure, 0)}</td>
+        <td><span class="status-pill" style="background:${hColor}22;color:${hColor};border:1px solid ${hColor}44;">${health}</span></td>
       </tr>`;
     }).join('')}
     </tbody>
@@ -3757,6 +3988,11 @@ function searchMarkets(q) {
 }
 
 // ===== Logs =====
+let logAutoScroll = true;
+function toggleLogScroll() {
+  logAutoScroll = document.getElementById('logAutoScroll') ? document.getElementById('logAutoScroll').checked : true;
+}
+
 function updateLogs(logs) {
   const box = document.getElementById('logBox');
   if (!logs || logs.length === 0) {
@@ -3770,7 +4006,7 @@ function updateLogs(logs) {
     else if (l.includes('[OK]') || l.includes('WON') || l.includes('OPENED')) cls = 'log-ok';
     return `<div class="log-line ${cls}">${l}</div>`;
   }).join('');
-  box.scrollTop = box.scrollHeight;
+  if (logAutoScroll) box.scrollTop = box.scrollHeight;
 }
 
 // ===== Tabs =====
@@ -3872,6 +4108,14 @@ async function submitSetup() {
 }
 
 // ===== Settings Panel =====
+const RISK_NAMES = {1:'极保守',2:'保守',3:'偏保守',4:'稳健偏保守',5:'平衡',6:'稳健偏进取',7:'进取',8:'积极',9:'激进',10:'极激进'};
+function updateRiskLabel() {
+  const v = parseInt(document.getElementById('cfgRisk').value) || 5;
+  document.getElementById('riskLabel').textContent = RISK_NAMES[v] || '';
+  const hint = document.getElementById('riskHint');
+  if (hint) hint.textContent = '档位 ' + v + '/10';
+}
+
 async function showSettings() {
   try {
     const r = await fetch('/api/config');
@@ -3888,6 +4132,8 @@ async function showSettings() {
     document.getElementById('cfgMakerBias').value = c.maker_bias_pct !== undefined ? c.maker_bias_pct : 0;
     document.getElementById('cfgMinLiq').value = c.min_liquidity !== undefined ? c.min_liquidity : 10;
     document.getElementById('cfgAnnualFloor').value = c.expiry_annualized_floor !== undefined ? c.expiry_annualized_floor : 20;
+    document.getElementById('cfgRisk').value = c.risk_level !== undefined ? c.risk_level : 5;
+    updateRiskLabel();
     document.getElementById('cfgFilterSpec').checked = !!c.filter_speculative;
     document.getElementById('cfgFilterCrypto').checked = !!c.filter_crypto_boundary;
     document.getElementById('cfgStrategyExpiry').checked = !!c.strategy_expiry;
@@ -3910,6 +4156,7 @@ async function saveSettings() {
     maker_bias_pct: parseFloat(document.getElementById('cfgMakerBias').value),
     min_liquidity: parseInt(document.getElementById('cfgMinLiq').value),
     expiry_annualized_floor: parseFloat(document.getElementById('cfgAnnualFloor').value),
+    risk_level: parseInt(document.getElementById('cfgRisk').value),
     filter_speculative: document.getElementById('cfgFilterSpec').checked,
     filter_crypto_boundary: document.getElementById('cfgFilterCrypto').checked,
     strategy_expiry: document.getElementById('cfgStrategyExpiry').checked,
