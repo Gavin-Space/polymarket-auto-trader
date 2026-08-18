@@ -74,9 +74,11 @@ CONFIG_FILE = WORKSPACE / "trading_config.json"    # Tunable runtime parameters
 GAMMA_API = "https://gamma-api.polymarket.com"
 CLOB_HOST = "https://clob.polymarket.com"
 
-# Release version, bumped on each GitHub push. Logged at startup so the
-# operator can confirm which code is actually running on a (remote) server.
-VERSION = "v14"
+# Semantic version (major.minor.patch), bumped on each GitHub push. minor =
+# the cumulative release iteration (14th release → 1.14.0). Logged at startup
+# so the operator can confirm which code is actually running on a (remote)
+# server, and shown in the dashboard footer.
+VERSION = "1.14.0"
 
 # ============================================================
 #  Runtime Configuration Store (trading_config.json)
@@ -2999,7 +3001,7 @@ body {
 
 <footer class="footer">
   <span>PolyAuto · 全自动预测市场交易系统</span>
-  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负 · <span id="versionTag" class="footer-brand">v14</span></span>
+  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负 · <span id="versionTag" class="footer-brand">1.14.0</span></span>
 </footer>
 
 <!-- Setup Modal -->

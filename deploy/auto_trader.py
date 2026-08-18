@@ -29,6 +29,7 @@ import time
 import math
 import logging
 import hashlib
+import secrets
 import traceback
 import threading
 import base64
@@ -72,6 +73,12 @@ LOG_FILE = WORKSPACE / "bot_trades.log"
 CONFIG_FILE = WORKSPACE / "trading_config.json"    # Tunable runtime parameters
 GAMMA_API = "https://gamma-api.polymarket.com"
 CLOB_HOST = "https://clob.polymarket.com"
+
+# Semantic version (major.minor.patch), bumped on each GitHub push. minor =
+# the cumulative release iteration (14th release → 1.14.0). Logged at startup
+# so the operator can confirm which code is actually running on a (remote)
+# server, and shown in the dashboard footer.
+VERSION = "1.14.0"
 
 # ============================================================
 #  Runtime Configuration Store (trading_config.json)
@@ -1244,7 +1251,7 @@ class AutoTraderEngine:
         BotState.save(self.state)
 
         # Daily Telegram summary — once per day
-        _today = now.strftime("%Y-%m-%d")
+        _today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         if _today != self.last_daily_summary_date:
             self.last_daily_summary_date = _today
             self._send_daily_summary()
@@ -1954,18 +1961,66 @@ engine = AutoTraderEngine()
 app = Flask(__name__)
 
 
+# ============================================================
+# Per-browser session auth (page-level login, cookie-scoped)
+# A session token lives in an HttpOnly cookie ("polyauth"). Every
+# /api/* data endpoint requires a valid session; the token is
+# issued only to the browser that successfully entered the password,
+# so one computer authorizing never leaks data to others. Clearing
+# the cookie / browser session / server restart revokes all access.
+# ============================================================
+_SESSIONS = {}                   # token -> created timestamp
+_SESSION_MAX_AGE = 12 * 3600     # hard server-side expiry (12h)
+_SESSION_COOKIE = "polyauth"
+_PUBLIC_API = {"/api/setup", "/api/authorize", "/api/logout"}
+
+
+def _new_session() -> str:
+    token = secrets.token_urlsafe(32)
+    _SESSIONS[token] = time.time()
+    # opportunistic prune of expired sessions to bound memory
+    now = time.time()
+    for tok, ts in list(_SESSIONS.items()):
+        if now - ts > _SESSION_MAX_AGE:
+            _SESSIONS.pop(tok, None)
+    return token
+
+
+def _valid_session(token) -> bool:
+    if not token:
+        return False
+    ts = _SESSIONS.get(token)
+    if not ts:
+        return False
+    if time.time() - ts > _SESSION_MAX_AGE:
+        _SESSIONS.pop(token, None)
+        return False
+    return True
+
+
 @app.before_request
 def _require_web_auth():
-    """Protect the dashboard with Basic Auth when web_password is configured
-    (recommended when exposing the dashboard on a remote server)."""
+    """Optional Basic-Auth layer (web_password) + per-browser session gate
+    for all /api/* data endpoints. The in-page authorize flow issues the
+    session cookie; unauthenticated browsers get 401 and only see the
+    login screen."""
+    # Layer 1: optional Basic Auth (recommended extra protection on a public server)
     pw = TradingConfig.web_password
-    if not pw:
-        return None
-    auth = request.authorization
-    if auth and auth.username == "admin" and auth.password == pw:
-        return None
-    return Response("PolyAuto 需要访问密码（请在设置中配置 web_password）",
-                    401, {"WWW-Authenticate": 'Basic realm="PolyAuto"'})
+    if pw:
+        auth = request.authorization
+        if not (auth and auth.username == "admin" and auth.password == pw):
+            return Response("PolyAuto 需要访问密码（请在设置中配置 web_password）",
+                            401, {"WWW-Authenticate": 'Basic realm="PolyAuto"'})
+    # Layer 2: session-cookie gate for data/control endpoints
+    if request.path.startswith("/api/") and request.path not in _PUBLIC_API:
+        token = request.cookies.get(_SESSION_COOKIE)
+        if not _valid_session(token):
+            return jsonify({
+                "error": "unauthorized",
+                "login_required": True,
+                "has_credentials": SecureCredentialManager.has_credentials(),
+            }), 401
+    return None
 
 
 
@@ -2020,11 +2075,29 @@ def api_authorize():
 
     success, error = engine.authorize(password, skip_wallet=skip_wallet)
     if success:
+        # Issue a session cookie to THIS browser only (page-level auth).
+        token = _new_session()
+        resp = jsonify({"success": True,
+                        "message": "授权成功，交易已自动启动" if not skip_wallet else "已进入查看模式"})
+        resp.set_cookie(_SESSION_COOKIE, token, httponly=True, samesite="Lax",
+                        secure=request.is_secure)
         if not skip_wallet:
             engine.start()
-        return jsonify({"success": True, "message": "授权成功，交易已自动启动" if not skip_wallet else "已进入查看模式"})
+        return resp
     else:
         return jsonify({"success": False, "error": error or "授权失败", "can_view_only": True}), 401
+
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    """End this browser's session: revoke the token server-side and clear
+    the cookie. The trading engine keeps running (logout only gates viewing)."""
+    token = request.cookies.get(_SESSION_COOKIE)
+    if token:
+        _SESSIONS.pop(token, None)
+    resp = jsonify({"success": True})
+    resp.set_cookie(_SESSION_COOKIE, "", expires=0, max_age=0, httponly=True, samesite="Lax")
+    return resp
 
 
 @app.route("/api/setup", methods=["POST"])
@@ -2397,35 +2470,47 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   --gradient-header: linear-gradient(135deg, #ffffff 0%, #f6f8fa 100%);
 }
 
-/* Hermès theme — deep warm charcoal + orange/gold accents + cream text */
+/* Hermes AI theme — GitHub AI-agent project aesthetic: neural-terminal dark,
+   cyan → violet accents, emerald signal green, subtle blueprint grid. */
 [data-theme="hermes"] {
-  --bg: #16120d;
-  --bg2: #1e1812;
-  --card: #241d15;
-  --card-hover: #2b2318;
-  --border: #3b3326;
-  --border-light: #2c251b;
-  --text: #f1e7d6;
-  --text-secondary: #d3c3a8;
-  --muted: #a3957a;
-  --primary: #ff7a00;
-  --primary-d: #e06a00;
-  --primary-l: rgba(255,122,0,0.14);
-  --green: #9db26a;
-  --green-l: rgba(157,178,106,0.14);
-  --red: #d4706f;
-  --red-l: rgba(212,112,111,0.14);
-  --orange: #ffa03a;
-  --orange-l: rgba(255,160,58,0.14);
-  --purple: #c49a6c;
-  --purple-l: rgba(196,154,108,0.14);
-  --teal: #d4a017;
-  --teal-l: rgba(212,160,23,0.14);
-  --shadow: 0 2px 12px rgba(0,0,0,0.4);
-  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
-  --log-bg: #16120d;
-  --modal-overlay: rgba(0,0,0,0.75);
-  --gradient-header: linear-gradient(135deg, #2a2118 0%, #16120d 100%);
+  --bg: #0a0f18;
+  --bg2: #0d1420;
+  --card: #111a28;
+  --card-hover: #16222f;
+  --border: #1f2e44;
+  --border-light: #182536;
+  --text: #d7e2f0;
+  --text-secondary: #a6b6cc;
+  --muted: #64778f;
+  --primary: #22d3ee;
+  --primary-d: #0ea5e9;
+  --primary-l: rgba(34,211,238,0.12);
+  --green: #34d399;
+  --green-l: rgba(52,211,153,0.12);
+  --red: #f87171;
+  --red-l: rgba(248,113,113,0.12);
+  --orange: #fbbf24;
+  --orange-l: rgba(251,191,36,0.12);
+  --purple: #a78bfa;
+  --purple-l: rgba(167,139,250,0.12);
+  --teal: #2dd4bf;
+  --teal-l: rgba(45,212,191,0.12);
+  --shadow: 0 2px 12px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.6);
+  --log-bg: #070b12;
+  --modal-overlay: rgba(4,7,12,0.8);
+  --gradient-header: linear-gradient(135deg, #0d1420 0%, #0a0f18 100%);
+}
+/* Blueprint grid overlay for the neural-terminal feel */
+[data-theme="hermes"] body {
+  background-image:
+    linear-gradient(rgba(34,211,238,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+[data-theme="hermes"] .hdr { border-bottom-color: rgba(34,211,238,0.15); }
+[data-theme="hermes"] .hdr::before {
+  background: linear-gradient(90deg, #22d3ee, #a78bfa, #2dd4bf);
 }
 
 /* Auto theme: follow system */
@@ -2676,6 +2761,17 @@ body {
 .field-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .field-row label { flex: 1; font-weight: 600; font-size: 14px; }
 .field-row .field-hint { display: block; font-weight: 400; }
+/* Settings modal: wider + 2-column field grid → better length/width ratio
+   instead of one tall narrow column. */
+.modal-settings { max-width: 880px; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; align-items: start; }
+.field-grid .field-row.wide { grid-column: 1 / -1; }
+/* Risk slider row: vertical stack so the long hint never gets crushed */
+.field-grid .field-row.wide.risk-row { flex-direction: column; align-items: stretch; gap: 10px; }
+.field-grid .field-row.wide.risk-row .risk-head { display: flex; justify-content: space-between; align-items: center; }
+.field-grid .field-row.wide.risk-row .risk-head label { flex: 1; }
+.field-grid .field-row.wide.risk-row input[type="range"] { width: 100%; }
+.field-grid .field-row.wide.risk-row .field-hint { display: block; }
 .switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch .slider { position: absolute; inset: 0; background: var(--border); border-radius: 26px; transition: 0.2s; cursor: pointer; }
@@ -2770,11 +2866,12 @@ body {
     <div class="theme-switch">
       <button class="theme-btn" onclick="setTheme('light')" title="亮色" data-theme-btn="light">&#9728;</button>
       <button class="theme-btn" onclick="setTheme('dark')" title="暗色" data-theme-btn="dark">&#9789;</button>
-      <button class="theme-btn" onclick="setTheme('hermes')" title="Hermès 橙金" data-theme-btn="hermes">&#9819;</button>
+      <button class="theme-btn" onclick="setTheme('hermes')" title="Hermes AI 终端" data-theme-btn="hermes">&#9889;</button>
       <button class="theme-btn active" onclick="setTheme('auto')" title="跟随系统" data-theme-btn="auto">&#9881;</button>
     </div>
     <button id="setupBtn" class="btn btn-ghost" onclick="showSetup()">配置</button>
     <button id="settingsBtn" class="btn btn-ghost" onclick="showSettings()">⚙️ 设置</button>
+    <button id="logoutBtn" class="btn btn-ghost" onclick="doLogout()">退出</button>
     <button id="authBtn" class="btn btn-primary" onclick="showAuthorize()">授权并启动</button>
     <button id="stopBtn" class="btn btn-danger" onclick="emergencyStop()" style="display:none;">紧急停止</button>
   </div>
@@ -2904,7 +3001,7 @@ body {
 
 <footer class="footer">
   <span>PolyAuto · 全自动预测市场交易系统</span>
-  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负</span>
+  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负 · <span id="versionTag" class="footer-brand">1.14.0</span></span>
 </footer>
 
 <!-- Setup Modal -->
@@ -2997,9 +3094,10 @@ body {
 
 <!-- Settings Modal -->
 <div id="settingsModal" class="modal-overlay" style="display:none;">
-  <div class="modal">
+  <div class="modal modal-settings">
     <h2>⚙️ 交易设置</h2>
     <p>运行时参数保存在 <code style="font-size:12px;">trading_config.json</code>，改动即时生效（下次扫描采用）。修改初始资金会自动重置统计以保持数据一致。</p>
+    <div class="field-grid">
     <div class="field-row">
       <label>初始资金 (USDC)<span class="field-hint">驱动仓位计算与盈亏基准</span></label>
       <input type="number" id="cfgBankroll" value="200" min="10" style="width:140px;">
@@ -3047,12 +3145,13 @@ body {
       <label>临期年化下限%<span class="field-hint">ExpiryYield 要求的最低年化收益（默认 20）</span></label>
       <input type="number" id="cfgAnnualFloor" value="20" min="5" step="5" style="width:140px;">
     </div>
-    <div class="field-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px;">
-      <label>🎚️ 交易风格（风险偏好 1-10）<span class="field-hint" id="riskHint">档位 5/10：越激进→仓位越大/门槛越低/策略越多，收益越高但回撤越大</span></label>
-      <div style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-end;">
-        <input type="range" id="cfgRisk" min="1" max="10" step="1" value="5" oninput="updateRiskLabel()" style="width:180px;accent-color:var(--primary);">
+    <div class="field-row wide risk-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px;">
+      <div class="risk-head">
+        <label>🎚️ 交易风格（风险偏好 1-10）</label>
         <span id="riskLabel" style="font-weight:800;color:var(--primary);min-width:64px;text-align:right;">平衡</span>
       </div>
+      <input type="range" id="cfgRisk" min="1" max="10" step="1" value="5" oninput="updateRiskLabel()" style="accent-color:var(--primary);">
+      <span class="field-hint" id="riskHint">档位 5/10：越激进→仓位越大/门槛越低/策略越多，收益越高但回撤越大</span>
     </div>
     <div class="field-row">
       <label>过滤电竞/比赛市场<span class="field-hint">排除 Dota2/CS/LoL 等难预测市场，提高胜率</span></label>
@@ -3073,6 +3172,7 @@ body {
     <div class="field-row">
       <label>推文套利策略</label>
       <label class="switch"><input type="checkbox" id="cfgStrategyTweet" checked><span class="slider"></span></label>
+    </div>
     </div>
     <div class="security-note">
       <strong>数据一致性：</strong>修改初始资金将自动重置统计与持仓（以新资金为基准重新开始），避免历史数据混乱。
@@ -3110,6 +3210,7 @@ let engineRunning = false;
 let sleepRemaining = 0;   // seconds until next scan (drives the countdown)
 let scanInterval = 300;   // total sleep duration for the progress bar
 let lastAction = '';      // latest current_action from the server
+let loginShown = false;   // guard: show the login/setup modal only once
 
 // ===== Number Formatting =====
 function fmtMoney(n, decimals) {
@@ -3264,9 +3365,33 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ===== Status Check =====
+// ===== Session Gate (page-level auth) =====
+// Server returns 401 + {login_required, has_credentials} when this browser
+// has no valid session cookie. Stop all data polling and force the login
+// (or first-time setup) modal. Clearing cookies / logout re-triggers this.
+function handleAuthRequired(info) {
+  if (loginShown) return;
+  loginShown = true;
+  if (autoRefresh) { clearInterval(autoRefresh); autoRefresh = null; }
+  // Hide all dashboard content so no stale data shows behind the login modal
+  const container = document.querySelector('.container');
+  if (container) container.style.visibility = 'hidden';
+  if (info && info.has_credentials === false) {
+    showSetup();
+  } else {
+    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('authPassword').focus();
+  }
+}
+
 async function checkStatus() {
   try {
     const r = await fetch('/api/status');
+    if (r.status === 401) {
+      const info = await r.json().catch(() => ({}));
+      handleAuthRequired(info);
+      return;
+    }
     const s = await r.json();
     updateHeader(s);
   } catch(e) { console.error(e); }
@@ -3323,6 +3448,11 @@ function updateHeader(s) {
 async function loadDashboard() {
   try {
     const r = await fetch('/api/dashboard');
+    if (r.status === 401) {
+      const info = await r.json().catch(() => ({}));
+      handleAuthRequired(info);
+      return;
+    }
     const d = await r.json();
     updateStats(d.status);
     updateOpportunities(d.opportunities);
@@ -3592,7 +3722,7 @@ function renderPositions() {
     return `<tr>
       <td><span class="tag ${tagClass}">${strategyCN(p.strategy)}</span></td>
       <td>
-        <div title="${p.question}" onclick="viewPosition('${p.id}')" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--text);">${p.question}</div>
+        <div title="${p.question}" onclick="viewPosition('${p.id}')" style="max-width:340px;white-space:normal;word-break:break-word;line-height:1.35;cursor:pointer;color:var(--text);">${p.question}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.end_date ? '到期 ' + fmtDt(p.end_date) : '未设到期'}｜开仓 ${fmtDt(p.opened_at)}</div>
       </td>
       <td>${p.side || '-'}</td>
@@ -4281,6 +4411,12 @@ async function doAuthorize(skipWallet) {
     if (result.success) {
       closeModal('authModal');
       document.getElementById('authPassword').value = '';
+      loginShown = false;
+      // Reveal dashboard content hidden by the session gate
+      const container = document.querySelector('.container');
+      if (container) container.style.visibility = '';
+      // Restart dashboard polling if the session gate had stopped it
+      if (!autoRefresh) { autoRefresh = setInterval(loadDashboard, 5000); }
       checkStatus();
       loadDashboard();
     } else {
@@ -4309,6 +4445,15 @@ async function emergencyStop() {
 // Override showAuthorize to be async-aware
 window.showAuthorize = async function() {
   const r = await fetch('/api/status');
+  if (r.status === 401) {
+    // Not logged in — enter password on the auth modal directly
+    const info = await r.json().catch(() => ({}));
+    loginShown = true;
+    if (info.has_credentials === false) { showSetup(); return; }
+    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('authPassword').focus();
+    return;
+  }
   const s = await r.json();
   if (!s.has_credentials) {
     showSetup();
@@ -4317,6 +4462,15 @@ window.showAuthorize = async function() {
     document.getElementById('authPassword').focus();
   }
 };
+
+async function doLogout() {
+  if (!confirm('确认退出登录？退出后需重新输入密码才能查看。')) return;
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+    loginShown = false;
+    location.reload();
+  } catch(e) { alert('错误: ' + e); }
+}
 </script>
 </body>
 </html>
@@ -4340,7 +4494,7 @@ if __name__ == "__main__":
         ], env={**os.environ, "PYTHONPATH": str(LIBS_DIR)})
 
     print("\n" + "=" * 60)
-    print("  PolyAuto - 全自动交易系统")
+    print("  PolyAuto - 全自动交易系统  " + VERSION)
     print("=" * 60)
     print()
     print("  浏览器打开: http://localhost:5000")
@@ -4360,5 +4514,5 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
 
-    log.info("Starting PolyAuto web server on http://localhost:5000")
+    log.info("PolyAuto %s starting — web server on http://localhost:5000", VERSION)
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
