@@ -851,12 +851,33 @@ class EnhancedScanner:
                         analysis_data["momentum"] = hist["momentum"]
                         analysis_data["volatility"] = hist["volatility"]
                         analysis_data["mean_reversion"] = hist["mean_reversion_signal"]
+                        # Fold the analysis into the true-probability estimate —
+                        # the model's edge over the market. Favorable own-token
+                        # momentum and mean-reversion (token recovering from a
+                        # dip) raise the win probability beyond the price alone.
+                        est_prob = min(0.999, max(0.01, est_prob + hist["momentum"] * 0.02))
+                        est_prob = min(0.999, max(0.01, est_prob + hist["mean_reversion_signal"] * 0.01))
+                analysis_data["estimated_prob"] = est_prob
 
                 # Calculate confidence score
                 confidence = ConfidenceScorer.score(analysis_data)
 
                 # Skip if confidence too low
                 if confidence < self.min_confidence:
+                    continue
+
+                # WIN-RATE BREAKEVEN GUARD: a near-$1 token pays only a small
+                # premium on a win (+2-5%) but forfeits the whole stake on a loss
+                # (-100%), so the breakeven win rate is essentially the entry
+                # price itself (buying NO at 0.97 needs a 97% win rate just to
+                # break even). If the model's confidence is well below that bar,
+                # the trade is negative-EV and one loss wipes out many small wins
+                # (observed: 10 tiny wins ~$0.30 each erased by a single -$10
+                # loss). Trade only when confidence is close to or above the
+                # breakeven rate (the small tolerance absorbs scorer calibration
+                # noise; the EV check below still demands a positive edge).
+                breakeven = analysis_data["market_price"] * 100
+                if confidence < breakeven - 5:
                     continue
 
                 # Calculate EV

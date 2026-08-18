@@ -1244,7 +1244,7 @@ class AutoTraderEngine:
         BotState.save(self.state)
 
         # Daily Telegram summary — once per day
-        _today = now.strftime("%Y-%m-%d")
+        _today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         if _today != self.last_daily_summary_date:
             self.last_daily_summary_date = _today
             self._send_daily_summary()
@@ -2397,35 +2397,47 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   --gradient-header: linear-gradient(135deg, #ffffff 0%, #f6f8fa 100%);
 }
 
-/* Hermès theme — deep warm charcoal + orange/gold accents + cream text */
+/* Hermes AI theme — GitHub AI-agent project aesthetic: neural-terminal dark,
+   cyan → violet accents, emerald signal green, subtle blueprint grid. */
 [data-theme="hermes"] {
-  --bg: #16120d;
-  --bg2: #1e1812;
-  --card: #241d15;
-  --card-hover: #2b2318;
-  --border: #3b3326;
-  --border-light: #2c251b;
-  --text: #f1e7d6;
-  --text-secondary: #d3c3a8;
-  --muted: #a3957a;
-  --primary: #ff7a00;
-  --primary-d: #e06a00;
-  --primary-l: rgba(255,122,0,0.14);
-  --green: #9db26a;
-  --green-l: rgba(157,178,106,0.14);
-  --red: #d4706f;
-  --red-l: rgba(212,112,111,0.14);
-  --orange: #ffa03a;
-  --orange-l: rgba(255,160,58,0.14);
-  --purple: #c49a6c;
-  --purple-l: rgba(196,154,108,0.14);
-  --teal: #d4a017;
-  --teal-l: rgba(212,160,23,0.14);
-  --shadow: 0 2px 12px rgba(0,0,0,0.4);
-  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
-  --log-bg: #16120d;
-  --modal-overlay: rgba(0,0,0,0.75);
-  --gradient-header: linear-gradient(135deg, #2a2118 0%, #16120d 100%);
+  --bg: #0a0f18;
+  --bg2: #0d1420;
+  --card: #111a28;
+  --card-hover: #16222f;
+  --border: #1f2e44;
+  --border-light: #182536;
+  --text: #d7e2f0;
+  --text-secondary: #a6b6cc;
+  --muted: #64778f;
+  --primary: #22d3ee;
+  --primary-d: #0ea5e9;
+  --primary-l: rgba(34,211,238,0.12);
+  --green: #34d399;
+  --green-l: rgba(52,211,153,0.12);
+  --red: #f87171;
+  --red-l: rgba(248,113,113,0.12);
+  --orange: #fbbf24;
+  --orange-l: rgba(251,191,36,0.12);
+  --purple: #a78bfa;
+  --purple-l: rgba(167,139,250,0.12);
+  --teal: #2dd4bf;
+  --teal-l: rgba(45,212,191,0.12);
+  --shadow: 0 2px 12px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.6);
+  --log-bg: #070b12;
+  --modal-overlay: rgba(4,7,12,0.8);
+  --gradient-header: linear-gradient(135deg, #0d1420 0%, #0a0f18 100%);
+}
+/* Blueprint grid overlay for the neural-terminal feel */
+[data-theme="hermes"] body {
+  background-image:
+    linear-gradient(rgba(34,211,238,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+[data-theme="hermes"] .hdr { border-bottom-color: rgba(34,211,238,0.15); }
+[data-theme="hermes"] .hdr::before {
+  background: linear-gradient(90deg, #22d3ee, #a78bfa, #2dd4bf);
 }
 
 /* Auto theme: follow system */
@@ -2676,6 +2688,17 @@ body {
 .field-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .field-row label { flex: 1; font-weight: 600; font-size: 14px; }
 .field-row .field-hint { display: block; font-weight: 400; }
+/* Settings modal: wider + 2-column field grid → better length/width ratio
+   instead of one tall narrow column. */
+.modal-settings { max-width: 880px; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; align-items: start; }
+.field-grid .field-row.wide { grid-column: 1 / -1; }
+/* Risk slider row: vertical stack so the long hint never gets crushed */
+.field-grid .field-row.wide.risk-row { flex-direction: column; align-items: stretch; gap: 10px; }
+.field-grid .field-row.wide.risk-row .risk-head { display: flex; justify-content: space-between; align-items: center; }
+.field-grid .field-row.wide.risk-row .risk-head label { flex: 1; }
+.field-grid .field-row.wide.risk-row input[type="range"] { width: 100%; }
+.field-grid .field-row.wide.risk-row .field-hint { display: block; }
 .switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch .slider { position: absolute; inset: 0; background: var(--border); border-radius: 26px; transition: 0.2s; cursor: pointer; }
@@ -2770,7 +2793,7 @@ body {
     <div class="theme-switch">
       <button class="theme-btn" onclick="setTheme('light')" title="亮色" data-theme-btn="light">&#9728;</button>
       <button class="theme-btn" onclick="setTheme('dark')" title="暗色" data-theme-btn="dark">&#9789;</button>
-      <button class="theme-btn" onclick="setTheme('hermes')" title="Hermès 橙金" data-theme-btn="hermes">&#9819;</button>
+      <button class="theme-btn" onclick="setTheme('hermes')" title="Hermes AI 终端" data-theme-btn="hermes">&#9889;</button>
       <button class="theme-btn active" onclick="setTheme('auto')" title="跟随系统" data-theme-btn="auto">&#9881;</button>
     </div>
     <button id="setupBtn" class="btn btn-ghost" onclick="showSetup()">配置</button>
@@ -2997,9 +3020,10 @@ body {
 
 <!-- Settings Modal -->
 <div id="settingsModal" class="modal-overlay" style="display:none;">
-  <div class="modal">
+  <div class="modal modal-settings">
     <h2>⚙️ 交易设置</h2>
     <p>运行时参数保存在 <code style="font-size:12px;">trading_config.json</code>，改动即时生效（下次扫描采用）。修改初始资金会自动重置统计以保持数据一致。</p>
+    <div class="field-grid">
     <div class="field-row">
       <label>初始资金 (USDC)<span class="field-hint">驱动仓位计算与盈亏基准</span></label>
       <input type="number" id="cfgBankroll" value="200" min="10" style="width:140px;">
@@ -3047,12 +3071,13 @@ body {
       <label>临期年化下限%<span class="field-hint">ExpiryYield 要求的最低年化收益（默认 20）</span></label>
       <input type="number" id="cfgAnnualFloor" value="20" min="5" step="5" style="width:140px;">
     </div>
-    <div class="field-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px;">
-      <label>🎚️ 交易风格（风险偏好 1-10）<span class="field-hint" id="riskHint">档位 5/10：越激进→仓位越大/门槛越低/策略越多，收益越高但回撤越大</span></label>
-      <div style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-end;">
-        <input type="range" id="cfgRisk" min="1" max="10" step="1" value="5" oninput="updateRiskLabel()" style="width:180px;accent-color:var(--primary);">
+    <div class="field-row wide risk-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px;">
+      <div class="risk-head">
+        <label>🎚️ 交易风格（风险偏好 1-10）</label>
         <span id="riskLabel" style="font-weight:800;color:var(--primary);min-width:64px;text-align:right;">平衡</span>
       </div>
+      <input type="range" id="cfgRisk" min="1" max="10" step="1" value="5" oninput="updateRiskLabel()" style="accent-color:var(--primary);">
+      <span class="field-hint" id="riskHint">档位 5/10：越激进→仓位越大/门槛越低/策略越多，收益越高但回撤越大</span>
     </div>
     <div class="field-row">
       <label>过滤电竞/比赛市场<span class="field-hint">排除 Dota2/CS/LoL 等难预测市场，提高胜率</span></label>
@@ -3073,6 +3098,7 @@ body {
     <div class="field-row">
       <label>推文套利策略</label>
       <label class="switch"><input type="checkbox" id="cfgStrategyTweet" checked><span class="slider"></span></label>
+    </div>
     </div>
     <div class="security-note">
       <strong>数据一致性：</strong>修改初始资金将自动重置统计与持仓（以新资金为基准重新开始），避免历史数据混乱。
@@ -3592,7 +3618,7 @@ function renderPositions() {
     return `<tr>
       <td><span class="tag ${tagClass}">${strategyCN(p.strategy)}</span></td>
       <td>
-        <div title="${p.question}" onclick="viewPosition('${p.id}')" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--text);">${p.question}</div>
+        <div title="${p.question}" onclick="viewPosition('${p.id}')" style="max-width:340px;white-space:normal;word-break:break-word;line-height:1.35;cursor:pointer;color:var(--text);">${p.question}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.end_date ? '到期 ' + fmtDt(p.end_date) : '未设到期'}｜开仓 ${fmtDt(p.opened_at)}</div>
       </td>
       <td>${p.side || '-'}</td>
