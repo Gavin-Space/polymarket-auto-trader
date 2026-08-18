@@ -121,7 +121,7 @@ Windows 也可用 `run_auto.bat` / `run_bot.bat` / `run_dashboard.bat` 一键启
 
 本项目基于 **MIT License** 开源。
 
-**Copyright (c) 2026 Mars**
+**Copyright (c) 2026 Gavin**
 
 MIT 许可证授予任何人**免费使用、复制、修改、合并、发布、分发、再许可和/或出售**本软件副本的权利，包括闭源与商业用途；唯一要求是**在所有副本或实质性部分中保留上述版权声明与本许可声明**（完整条款见根目录 [`LICENSE`](LICENSE) 文件）。
 
