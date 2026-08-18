@@ -1,5 +1,7 @@
 # Polymarket Auto-Trader
 
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
 一个用于 **Polymarket 预测市场**的全自动交易系统：自动扫描市场 → 多策略筛选正期望机会 → 限价单下单 → 智能止盈止损 → Web 仪表盘监控。
 
 > ⚠️ **风险提示**：预测市场是零和博弈，多数参与者亏钱（研究显示 top 1% 拿走 ~76% 利润）。本项目仅用于研究/教育，交易风险自负。请只用可承受损失的金额，并注意当地法规与 Polymarket 的地区限制。
@@ -117,4 +119,32 @@ Windows 也可用 `run_auto.bat` / `run_bot.bat` / `run_dashboard.bat` 一键启
 
 ## 📄 License
 
-MIT（如需商用或二次开发，请保留出处）。
+本项目基于 **MIT License** 开源。
+
+**Copyright (c) 2026 Mars**
+
+MIT 许可证授予任何人**免费使用、复制、修改、合并、发布、分发、再许可和/或出售**本软件副本的权利，包括闭源与商业用途；唯一要求是**在所有副本或实质性部分中保留上述版权声明与本许可声明**（完整条款见根目录 [`LICENSE`](LICENSE) 文件）。
+
+```
+MIT License
+
+Copyright (c) 2026 Mars
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
