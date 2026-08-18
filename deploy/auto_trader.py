@@ -75,10 +75,10 @@ GAMMA_API = "https://gamma-api.polymarket.com"
 CLOB_HOST = "https://clob.polymarket.com"
 
 # Semantic version (major.minor.patch), bumped on each GitHub push. minor =
-# the cumulative release iteration (14th release → 1.14.0). Logged at startup
+# the cumulative release iteration (15th release → 1.15.0). Logged at startup
 # so the operator can confirm which code is actually running on a (remote)
 # server, and shown in the dashboard footer.
-VERSION = "1.14.0"
+VERSION = "1.15.0"
 
 # ============================================================
 #  Runtime Configuration Store (trading_config.json)
@@ -1972,7 +1972,7 @@ app = Flask(__name__)
 _SESSIONS = {}                   # token -> created timestamp
 _SESSION_MAX_AGE = 12 * 3600     # hard server-side expiry (12h)
 _SESSION_COOKIE = "polyauth"
-_PUBLIC_API = {"/api/setup", "/api/authorize", "/api/logout"}
+_PUBLIC_API = {"/api/setup", "/api/authorize", "/api/logout", "/api/network-check"}
 
 
 def _new_session() -> str:
@@ -2757,27 +2757,82 @@ body {
 .empty-title { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
 .empty-hint { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.7; }
 .empty .btn { margin-top: 2px; }
-/* Toggle switch */
-.field-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.field-row label { flex: 1; font-weight: 600; font-size: 14px; }
-.field-row .field-hint { display: block; font-weight: 400; }
-/* Settings modal: wider + 2-column field grid → better length/width ratio
-   instead of one tall narrow column. */
-.modal-settings { max-width: 880px; }
-.field-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; align-items: start; }
+/* ===== Settings modal ===== */
+.modal-settings { max-width: 920px; padding: 28px 32px; }
+.modal-settings .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.modal-settings h2 { margin: 0; font-size: 20px; }
+.modal-close { background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 8px 10px; border-radius: var(--radius-sm); transition: 0.15s; }
+.modal-close:hover { color: var(--text); background: var(--bg2); }
+.modal-desc { font-size: 12.5px; color: var(--muted); line-height: 1.8; margin: 0 0 18px; }
+.modal-desc code { font-size: 11.5px; background: var(--bg2); padding: 1px 5px; border-radius: 4px; }
+/* grouped sections with header rule */
+.setting-section { margin-bottom: 20px; }
+.setting-section:last-child { margin-bottom: 0; }
+.setting-section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; color: var(--text);
+  margin-bottom: 8px; letter-spacing: 0.03em;
+}
+.setting-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+/* 2-column field grid */
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 36px; row-gap: 2px; align-items: start; }
 .field-grid .field-row.wide { grid-column: 1 / -1; }
-/* Risk slider row: vertical stack so the long hint never gets crushed */
-.field-grid .field-row.wide.risk-row { flex-direction: column; align-items: stretch; gap: 10px; }
-.field-grid .field-row.wide.risk-row .risk-head { display: flex; justify-content: space-between; align-items: center; }
-.field-grid .field-row.wide.risk-row .risk-head label { flex: 1; }
-.field-grid .field-row.wide.risk-row input[type="range"] { width: 100%; }
-.field-grid .field-row.wide.risk-row .field-hint { display: block; }
-.switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
-.switch input { opacity: 0; width: 0; height: 0; }
-.switch .slider { position: absolute; inset: 0; background: var(--border); border-radius: 26px; transition: 0.2s; cursor: pointer; }
-.switch .slider::before { content: ''; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
-.switch input:checked + .slider { background: var(--green); }
-.switch input:checked + .slider::before { transform: translateX(20px); }
+.field-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.field-row label { flex: 1; font-weight: 600; font-size: 13px; color: var(--text); line-height: 1.4; }
+.field-row .field-hint { display: block; font-weight: 400; font-size: 11px; color: var(--muted); margin-top: 2px; }
+/* consistent number/select controls */
+.field-row input[type="number"], .field-row select {
+  width: 128px; flex-shrink: 0; padding: 7px 10px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text); font-size: 13px; font-family: 'Consolas', monospace; text-align: right;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field-row select { text-align: left; cursor: pointer; }
+.field-row input[type="number"]:focus, .field-row select:focus {
+  outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l);
+}
+/* risk slider row — vertical stack so the hint never gets crushed */
+.field-row.wide.risk-row { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px 0 4px; }
+.field-row.wide.risk-row .risk-head { display: flex; justify-content: space-between; align-items: center; }
+.field-row.wide.risk-row .risk-head label { flex: 1; }
+.field-row.wide.risk-row input[type="range"] { width: 100%; }
+.field-row.wide.risk-row .field-hint { display: block; }
+/* toggle pills — self-labeled 开/关, unmistakably a toggle not a slider */
+.switch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.toggle-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 12px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.toggle-item:hover { border-color: var(--primary); }
+.toggle-item .toggle-label { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.toggle { position: relative; width: 56px; height: 26px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track { position: absolute; inset: 0; background: var(--border); border-radius: 26px; cursor: pointer; transition: background 0.2s; }
+.toggle-text {
+  position: absolute; top: 0; width: 50%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; user-select: none; transition: opacity 0.15s;
+}
+.toggle-on { left: 0; color: #fff; opacity: 0; }
+.toggle-off { right: 0; color: var(--muted); opacity: 1; }
+.toggle-thumb {
+  position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: transform 0.2s; z-index: 1;
+}
+.toggle input:checked + .toggle-track { background: var(--green); }
+.toggle input:checked + .toggle-track .toggle-on { opacity: 1; }
+.toggle input:checked + .toggle-track .toggle-off { opacity: 0; }
+.toggle input:checked + .toggle-track .toggle-thumb { transform: translateX(30px); }
+@media (max-width: 720px) {
+  .field-grid { grid-template-columns: 1fr; }
+  .switch-grid { grid-template-columns: repeat(2, 1fr); }
+}
+/* settings footer actions */
+.modal-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+.modal-actions-right { display: flex; gap: 10px; }
 /* Loading spinner */
 .spinner {
   display: inline-block; width: 16px; height: 16px;
@@ -3001,7 +3056,7 @@ body {
 
 <footer class="footer">
   <span>PolyAuto · 全自动预测市场交易系统</span>
-  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负 · <span id="versionTag" class="footer-brand">1.14.0</span></span>
+  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负 · <span id="versionTag" class="footer-brand">1.15.0</span></span>
 </footer>
 
 <!-- Setup Modal -->
@@ -3095,91 +3150,150 @@ body {
 <!-- Settings Modal -->
 <div id="settingsModal" class="modal-overlay" style="display:none;">
   <div class="modal modal-settings">
-    <h2>⚙️ 交易设置</h2>
-    <p>运行时参数保存在 <code style="font-size:12px;">trading_config.json</code>，改动即时生效（下次扫描采用）。修改初始资金会自动重置统计以保持数据一致。</p>
-    <div class="field-grid">
-    <div class="field-row">
-      <label>初始资金 (USDC)<span class="field-hint">驱动仓位计算与盈亏基准</span></label>
-      <input type="number" id="cfgBankroll" value="200" min="10" style="width:140px;">
+    <div class="modal-head">
+      <h2>⚙️ 交易设置</h2>
+      <button class="modal-close" onclick="closeModal('settingsModal')" title="关闭">✕</button>
     </div>
-    <div class="field-row">
-      <label>交易模式</label>
-      <select id="cfgMode" style="width:150px;">
-        <option value="dry_run">模拟盘</option>
-        <option value="live">实盘</option>
-      </select>
-    </div>
-    <div class="field-row">
-      <label>扫描间隔 (秒)<span class="field-hint">默认 300 秒（5 分钟）</span></label>
-      <input type="number" id="cfgScanInterval" value="300" min="30" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>最大持仓数</label>
-      <input type="number" id="cfgMaxPositions" value="10" min="1" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>每日交易上限<span class="field-hint">达到后当日停止开新仓</span></label>
-      <input type="number" id="cfgMaxDaily" value="8" min="1" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>最小置信度<span class="field-hint">默认 75</span></label>
-      <input type="number" id="cfgMinConf" value="75" min="50" max="100" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>最小期望收益 EV%<span class="field-hint">默认 1.5%</span></label>
-      <input type="number" id="cfgMinEv" value="1.5" min="0.5" step="0.1" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>推文套利止盈目标<span class="field-hint">桶价涨到此倍数即提前止盈（1.0=翻倍，0=只持有到期）</span></label>
-      <input type="number" id="cfgTweetTp" value="1.0" min="0" step="0.1" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>做市偏向<span class="field-hint">买单挂在 ask 下方比例（0=按 ask 吃单；0.001=挂低0.1%做市吃价差，研究证实做市是唯一稳健 edge）</span></label>
-      <input type="number" id="cfgMakerBias" value="0" min="0" step="0.0005" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>最小流动性分<span class="field-hint">跳过流动性分低于此的机会（默认 10）</span></label>
-      <input type="number" id="cfgMinLiq" value="10" min="0" style="width:140px;">
-    </div>
-    <div class="field-row">
-      <label>临期年化下限%<span class="field-hint">ExpiryYield 要求的最低年化收益（默认 20）</span></label>
-      <input type="number" id="cfgAnnualFloor" value="20" min="5" step="5" style="width:140px;">
-    </div>
-    <div class="field-row wide risk-row" style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px;">
-      <div class="risk-head">
-        <label>🎚️ 交易风格（风险偏好 1-10）</label>
-        <span id="riskLabel" style="font-weight:800;color:var(--primary);min-width:64px;text-align:right;">平衡</span>
+    <p class="modal-desc">参数保存在 <code>trading_config.json</code>，改动即时生效（下次扫描采用）。修改初始资金会自动重置统计以保持数据一致。</p>
+
+    <div class="setting-section">
+      <div class="setting-section-title">💼 账户与运行</div>
+      <div class="field-grid">
+        <div class="field-row">
+          <label>初始资金 (USDC)<span class="field-hint">驱动仓位计算与盈亏基准</span></label>
+          <input type="number" id="cfgBankroll" value="200" min="10">
+        </div>
+        <div class="field-row">
+          <label>交易模式</label>
+          <select id="cfgMode">
+            <option value="dry_run">模拟盘</option>
+            <option value="live">实盘</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label>扫描间隔 (秒)<span class="field-hint">默认 300 秒（5 分钟）</span></label>
+          <input type="number" id="cfgScanInterval" value="300" min="30">
+        </div>
+        <div class="field-row">
+          <label>最大持仓数</label>
+          <input type="number" id="cfgMaxPositions" value="10" min="1">
+        </div>
+        <div class="field-row">
+          <label>每日交易上限<span class="field-hint">达到后当日停止开新仓</span></label>
+          <input type="number" id="cfgMaxDaily" value="8" min="1">
+        </div>
       </div>
-      <input type="range" id="cfgRisk" min="1" max="10" step="1" value="5" oninput="updateRiskLabel()" style="accent-color:var(--primary);">
-      <span class="field-hint" id="riskHint">档位 5/10：越激进→仓位越大/门槛越低/策略越多，收益越高但回撤越大</span>
     </div>
-    <div class="field-row">
-      <label>过滤电竞/比赛市场<span class="field-hint">排除 Dota2/CS/LoL 等难预测市场，提高胜率</span></label>
-      <label class="switch"><input type="checkbox" id="cfgFilterSpec" checked><span class="slider"></span></label>
+
+    <div class="setting-section">
+      <div class="setting-section-title">📐 策略阈值</div>
+      <div class="field-grid">
+        <div class="field-row">
+          <label>最小置信度<span class="field-hint">默认 75</span></label>
+          <input type="number" id="cfgMinConf" value="75" min="50" max="100">
+        </div>
+        <div class="field-row">
+          <label>最小期望收益 EV%<span class="field-hint">默认 1.5%</span></label>
+          <input type="number" id="cfgMinEv" value="1.5" min="0.5" step="0.1">
+        </div>
+        <div class="field-row">
+          <label>推文套利止盈目标<span class="field-hint">桶价涨到此倍数即提前止盈（1.0=翻倍，0=只持有到期）</span></label>
+          <input type="number" id="cfgTweetTp" value="1.0" min="0" step="0.1">
+        </div>
+        <div class="field-row">
+          <label>做市偏向<span class="field-hint">买单挂 ask 下方比例（0=按 ask 吃单；0.001=挂低 0.1% 做市）</span></label>
+          <input type="number" id="cfgMakerBias" value="0" min="0" step="0.0005">
+        </div>
+        <div class="field-row">
+          <label>最小流动性分<span class="field-hint">跳过低于此的机会（默认 10）</span></label>
+          <input type="number" id="cfgMinLiq" value="10" min="0">
+        </div>
+        <div class="field-row">
+          <label>临期年化下限%<span class="field-hint">ExpiryYield 最低年化收益（默认 20）</span></label>
+          <input type="number" id="cfgAnnualFloor" value="20" min="5" step="5">
+        </div>
+      </div>
     </div>
-    <div class="field-row">
-      <label>收紧加密边界市场<span class="field-hint">BTC/ETH above/below 需更高概率</span></label>
-      <label class="switch"><input type="checkbox" id="cfgFilterCrypto" checked><span class="slider"></span></label>
+
+    <div class="setting-section">
+      <div class="setting-section-title">🎚️ 风险偏好</div>
+      <div class="field-row wide risk-row">
+        <div class="risk-head">
+          <label>交易风格（风险偏好 1-10）</label>
+          <span id="riskLabel" style="font-weight:800;color:var(--primary);min-width:64px;text-align:right;">平衡</span>
+        </div>
+        <input type="range" id="cfgRisk" min="1" max="10" step="1" value="5" oninput="updateRiskLabel()" style="accent-color:var(--primary);">
+        <span class="field-hint" id="riskHint">档位 5/10：越激进→仓位越大/门槛越低/策略越多，收益越高但回撤越大</span>
+      </div>
     </div>
-    <div class="field-row">
-      <label>临期理财策略</label>
-      <label class="switch"><input type="checkbox" id="cfgStrategyExpiry" checked><span class="slider"></span></label>
+
+    <div class="setting-section">
+      <div class="setting-section-title">🧩 策略与过滤</div>
+      <div class="switch-grid">
+        <label class="toggle-item">
+          <span class="toggle-label">过滤电竞/比赛</span>
+          <span class="toggle">
+            <input type="checkbox" id="cfgFilterSpec" checked>
+            <span class="toggle-track">
+              <span class="toggle-text toggle-on">开</span>
+              <span class="toggle-text toggle-off">关</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </span>
+        </label>
+        <label class="toggle-item">
+          <span class="toggle-label">收紧加密边界</span>
+          <span class="toggle">
+            <input type="checkbox" id="cfgFilterCrypto" checked>
+            <span class="toggle-track">
+              <span class="toggle-text toggle-on">开</span>
+              <span class="toggle-text toggle-off">关</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </span>
+        </label>
+        <label class="toggle-item">
+          <span class="toggle-label">临期理财策略</span>
+          <span class="toggle">
+            <input type="checkbox" id="cfgStrategyExpiry" checked>
+            <span class="toggle-track">
+              <span class="toggle-text toggle-on">开</span>
+              <span class="toggle-text toggle-off">关</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </span>
+        </label>
+        <label class="toggle-item">
+          <span class="toggle-label">套利策略</span>
+          <span class="toggle">
+            <input type="checkbox" id="cfgStrategyArb" checked>
+            <span class="toggle-track">
+              <span class="toggle-text toggle-on">开</span>
+              <span class="toggle-text toggle-off">关</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </span>
+        </label>
+        <label class="toggle-item">
+          <span class="toggle-label">推文套利策略</span>
+          <span class="toggle">
+            <input type="checkbox" id="cfgStrategyTweet" checked>
+            <span class="toggle-track">
+              <span class="toggle-text toggle-on">开</span>
+              <span class="toggle-text toggle-off">关</span>
+              <span class="toggle-thumb"></span>
+            </span>
+          </span>
+        </label>
+      </div>
     </div>
-    <div class="field-row">
-      <label>套利策略</label>
-      <label class="switch"><input type="checkbox" id="cfgStrategyArb" checked><span class="slider"></span></label>
-    </div>
-    <div class="field-row">
-      <label>推文套利策略</label>
-      <label class="switch"><input type="checkbox" id="cfgStrategyTweet" checked><span class="slider"></span></label>
-    </div>
-    </div>
+
     <div class="security-note">
       <strong>数据一致性：</strong>修改初始资金将自动重置统计与持仓（以新资金为基准重新开始），避免历史数据混乱。
     </div>
-    <div style="display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;">
-      <button class="btn btn-danger" onclick="resetStats()" style="background:var(--red);">重置统计</button>
-      <div style="display:flex;gap:12px;">
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="resetStats()">重置统计</button>
+      <div class="modal-actions-right">
         <button class="btn btn-ghost" onclick="closeModal('settingsModal')">取消</button>
         <button class="btn btn-primary" onclick="saveSettings()">保存配置</button>
       </div>
@@ -4367,7 +4481,7 @@ async function runNetworkDiag() {
       html += `<div class="diag-row"><span class="diag-label">Polymarket 连通性</span><span>${polyStatus}</span></div>`;
       html += `<div class="diag-row"><span class="diag-label">CLOB 直连</span><span>${d.polymarket.clob_direct ? '<span class="diag-value-ok">OK</span>' : '<span class="diag-value-fail">FAIL</span>'}</span></div>`;
       html += `<div class="diag-row"><span class="diag-label">Gamma 直连</span><span>${d.polymarket.gamma_direct ? '<span class="diag-value-ok">OK</span>' : '<span class="diag-value-fail">FAIL</span>'}</span></div>`;
-      if (d.proxy.configed) {
+      if (d.proxy.configured) {
         html += `<div class="diag-row"><span class="diag-label">CLOB 代理</span><span>${d.polymarket.clob_proxy ? '<span class="diag-value-ok">OK</span>' : '<span class="diag-value-fail">FAIL</span>'}</span></div>`;
         html += `<div class="diag-row"><span class="diag-label">Gamma 代理</span><span>${d.polymarket.gamma_proxy ? '<span class="diag-value-ok">OK</span>' : '<span class="diag-value-fail">FAIL</span>'}</span></div>`;
       }
