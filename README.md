@@ -1,6 +1,10 @@
 # Polymarket Auto-Trader
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
+![Last commit](https://img.shields.io/github/last-commit/gaofeird/polymarket-auto-trader)
+![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
 一个用于 **Polymarket 预测市场**的全自动交易系统：自动扫描市场 → 多策略筛选正期望机会 → 限价单下单 → 智能止盈止损 → Web 仪表盘监控。
 
