@@ -29,6 +29,7 @@ import time
 import math
 import logging
 import hashlib
+import secrets
 import traceback
 import threading
 import base64
@@ -1954,18 +1955,66 @@ engine = AutoTraderEngine()
 app = Flask(__name__)
 
 
+# ============================================================
+# Per-browser session auth (page-level login, cookie-scoped)
+# A session token lives in an HttpOnly cookie ("polyauth"). Every
+# /api/* data endpoint requires a valid session; the token is
+# issued only to the browser that successfully entered the password,
+# so one computer authorizing never leaks data to others. Clearing
+# the cookie / browser session / server restart revokes all access.
+# ============================================================
+_SESSIONS = {}                   # token -> created timestamp
+_SESSION_MAX_AGE = 12 * 3600     # hard server-side expiry (12h)
+_SESSION_COOKIE = "polyauth"
+_PUBLIC_API = {"/api/setup", "/api/authorize", "/api/logout"}
+
+
+def _new_session() -> str:
+    token = secrets.token_urlsafe(32)
+    _SESSIONS[token] = time.time()
+    # opportunistic prune of expired sessions to bound memory
+    now = time.time()
+    for tok, ts in list(_SESSIONS.items()):
+        if now - ts > _SESSION_MAX_AGE:
+            _SESSIONS.pop(tok, None)
+    return token
+
+
+def _valid_session(token) -> bool:
+    if not token:
+        return False
+    ts = _SESSIONS.get(token)
+    if not ts:
+        return False
+    if time.time() - ts > _SESSION_MAX_AGE:
+        _SESSIONS.pop(token, None)
+        return False
+    return True
+
+
 @app.before_request
 def _require_web_auth():
-    """Protect the dashboard with Basic Auth when web_password is configured
-    (recommended when exposing the dashboard on a remote server)."""
+    """Optional Basic-Auth layer (web_password) + per-browser session gate
+    for all /api/* data endpoints. The in-page authorize flow issues the
+    session cookie; unauthenticated browsers get 401 and only see the
+    login screen."""
+    # Layer 1: optional Basic Auth (recommended extra protection on a public server)
     pw = TradingConfig.web_password
-    if not pw:
-        return None
-    auth = request.authorization
-    if auth and auth.username == "admin" and auth.password == pw:
-        return None
-    return Response("PolyAuto 需要访问密码（请在设置中配置 web_password）",
-                    401, {"WWW-Authenticate": 'Basic realm="PolyAuto"'})
+    if pw:
+        auth = request.authorization
+        if not (auth and auth.username == "admin" and auth.password == pw):
+            return Response("PolyAuto 需要访问密码（请在设置中配置 web_password）",
+                            401, {"WWW-Authenticate": 'Basic realm="PolyAuto"'})
+    # Layer 2: session-cookie gate for data/control endpoints
+    if request.path.startswith("/api/") and request.path not in _PUBLIC_API:
+        token = request.cookies.get(_SESSION_COOKIE)
+        if not _valid_session(token):
+            return jsonify({
+                "error": "unauthorized",
+                "login_required": True,
+                "has_credentials": SecureCredentialManager.has_credentials(),
+            }), 401
+    return None
 
 
 
@@ -2020,11 +2069,29 @@ def api_authorize():
 
     success, error = engine.authorize(password, skip_wallet=skip_wallet)
     if success:
+        # Issue a session cookie to THIS browser only (page-level auth).
+        token = _new_session()
+        resp = jsonify({"success": True,
+                        "message": "授权成功，交易已自动启动" if not skip_wallet else "已进入查看模式"})
+        resp.set_cookie(_SESSION_COOKIE, token, httponly=True, samesite="Lax",
+                        secure=request.is_secure)
         if not skip_wallet:
             engine.start()
-        return jsonify({"success": True, "message": "授权成功，交易已自动启动" if not skip_wallet else "已进入查看模式"})
+        return resp
     else:
         return jsonify({"success": False, "error": error or "授权失败", "can_view_only": True}), 401
+
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    """End this browser's session: revoke the token server-side and clear
+    the cookie. The trading engine keeps running (logout only gates viewing)."""
+    token = request.cookies.get(_SESSION_COOKIE)
+    if token:
+        _SESSIONS.pop(token, None)
+    resp = jsonify({"success": True})
+    resp.set_cookie(_SESSION_COOKIE, "", expires=0, max_age=0, httponly=True, samesite="Lax")
+    return resp
 
 
 @app.route("/api/setup", methods=["POST"])
@@ -2798,6 +2865,7 @@ body {
     </div>
     <button id="setupBtn" class="btn btn-ghost" onclick="showSetup()">配置</button>
     <button id="settingsBtn" class="btn btn-ghost" onclick="showSettings()">⚙️ 设置</button>
+    <button id="logoutBtn" class="btn btn-ghost" onclick="doLogout()">退出</button>
     <button id="authBtn" class="btn btn-primary" onclick="showAuthorize()">授权并启动</button>
     <button id="stopBtn" class="btn btn-danger" onclick="emergencyStop()" style="display:none;">紧急停止</button>
   </div>
@@ -3136,6 +3204,7 @@ let engineRunning = false;
 let sleepRemaining = 0;   // seconds until next scan (drives the countdown)
 let scanInterval = 300;   // total sleep duration for the progress bar
 let lastAction = '';      // latest current_action from the server
+let loginShown = false;   // guard: show the login/setup modal only once
 
 // ===== Number Formatting =====
 function fmtMoney(n, decimals) {
@@ -3290,9 +3359,33 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ===== Status Check =====
+// ===== Session Gate (page-level auth) =====
+// Server returns 401 + {login_required, has_credentials} when this browser
+// has no valid session cookie. Stop all data polling and force the login
+// (or first-time setup) modal. Clearing cookies / logout re-triggers this.
+function handleAuthRequired(info) {
+  if (loginShown) return;
+  loginShown = true;
+  if (autoRefresh) { clearInterval(autoRefresh); autoRefresh = null; }
+  // Hide all dashboard content so no stale data shows behind the login modal
+  const container = document.querySelector('.container');
+  if (container) container.style.visibility = 'hidden';
+  if (info && info.has_credentials === false) {
+    showSetup();
+  } else {
+    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('authPassword').focus();
+  }
+}
+
 async function checkStatus() {
   try {
     const r = await fetch('/api/status');
+    if (r.status === 401) {
+      const info = await r.json().catch(() => ({}));
+      handleAuthRequired(info);
+      return;
+    }
     const s = await r.json();
     updateHeader(s);
   } catch(e) { console.error(e); }
@@ -3349,6 +3442,11 @@ function updateHeader(s) {
 async function loadDashboard() {
   try {
     const r = await fetch('/api/dashboard');
+    if (r.status === 401) {
+      const info = await r.json().catch(() => ({}));
+      handleAuthRequired(info);
+      return;
+    }
     const d = await r.json();
     updateStats(d.status);
     updateOpportunities(d.opportunities);
@@ -4307,6 +4405,12 @@ async function doAuthorize(skipWallet) {
     if (result.success) {
       closeModal('authModal');
       document.getElementById('authPassword').value = '';
+      loginShown = false;
+      // Reveal dashboard content hidden by the session gate
+      const container = document.querySelector('.container');
+      if (container) container.style.visibility = '';
+      // Restart dashboard polling if the session gate had stopped it
+      if (!autoRefresh) { autoRefresh = setInterval(loadDashboard, 5000); }
       checkStatus();
       loadDashboard();
     } else {
@@ -4335,6 +4439,15 @@ async function emergencyStop() {
 // Override showAuthorize to be async-aware
 window.showAuthorize = async function() {
   const r = await fetch('/api/status');
+  if (r.status === 401) {
+    // Not logged in — enter password on the auth modal directly
+    const info = await r.json().catch(() => ({}));
+    loginShown = true;
+    if (info.has_credentials === false) { showSetup(); return; }
+    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('authPassword').focus();
+    return;
+  }
   const s = await r.json();
   if (!s.has_credentials) {
     showSetup();
@@ -4343,6 +4456,15 @@ window.showAuthorize = async function() {
     document.getElementById('authPassword').focus();
   }
 };
+
+async function doLogout() {
+  if (!confirm('确认退出登录？退出后需重新输入密码才能查看。')) return;
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+    loginShown = false;
+    location.reload();
+  } catch(e) { alert('错误: ' + e); }
+}
 </script>
 </body>
 </html>
