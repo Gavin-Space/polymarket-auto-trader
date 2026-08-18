@@ -74,6 +74,10 @@ CONFIG_FILE = WORKSPACE / "trading_config.json"    # Tunable runtime parameters
 GAMMA_API = "https://gamma-api.polymarket.com"
 CLOB_HOST = "https://clob.polymarket.com"
 
+# Release version, bumped on each GitHub push. Logged at startup so the
+# operator can confirm which code is actually running on a (remote) server.
+VERSION = "v14"
+
 # ============================================================
 #  Runtime Configuration Store (trading_config.json)
 # ============================================================
@@ -2995,7 +2999,7 @@ body {
 
 <footer class="footer">
   <span>PolyAuto · 全自动预测市场交易系统</span>
-  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负</span>
+  <span>© 2026 <span class="footer-brand">Gavin</span> · 谨慎交易，风险自负 · <span id="versionTag" class="footer-brand">v14</span></span>
 </footer>
 
 <!-- Setup Modal -->
@@ -4488,7 +4492,7 @@ if __name__ == "__main__":
         ], env={**os.environ, "PYTHONPATH": str(LIBS_DIR)})
 
     print("\n" + "=" * 60)
-    print("  PolyAuto - 全自动交易系统")
+    print("  PolyAuto - 全自动交易系统  " + VERSION)
     print("=" * 60)
     print()
     print("  浏览器打开: http://localhost:5000")
@@ -4508,5 +4512,5 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
 
-    log.info("Starting PolyAuto web server on http://localhost:5000")
+    log.info("PolyAuto %s starting — web server on http://localhost:5000", VERSION)
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
