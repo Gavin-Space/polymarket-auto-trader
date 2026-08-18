@@ -128,7 +128,7 @@ MIT 许可证授予任何人**免费使用、复制、修改、合并、发布�
 ```
 MIT License
 
-Copyright (c) 2026 Mars
+Copyright (c) 2026 Gavin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
