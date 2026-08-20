@@ -102,4 +102,4 @@ python ashare_trader.py
 
 ---
 
-AShareAuto · A股自动交易系统 · © 2026 Gavin · 谨慎交易,风险自负 · v1.0.0
+AShareAuto · A股自动交易系统 · © 2026 Gavin · 谨慎交易,风险自负 · v1.0.1

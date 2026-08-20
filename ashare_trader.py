@@ -37,7 +37,7 @@ import ashare_data as Data
 from ashare_broker import PaperBroker, QMTBroker, PaperState, is_cb
 from ashare_strategy_engine import StrategyEngine, size_position
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 # ============================================================
 #  Config
@@ -217,20 +217,20 @@ class TradingLoop(threading.Thread):
         self.est = est
         self.cfg = cfg
         self.state = state
-        self._stop = threading.Event()
+        self._stop_evt = threading.Event()
 
     def stop(self):
-        self._stop.set()
+        self._stop_evt.set()
 
     def run(self):
-        while not self._stop.is_set():
+        while not self._stop_evt.is_set():
             interval = int(self.cfg.get("scan_interval", 300))
             try:
                 self._one_cycle()
             except Exception as e:
                 self.est.update(last_error=str(e))
                 log.error(f"扫描异常: {e}")
-            self._stop.wait(max(interval, 15))
+            self._stop_evt.wait(max(interval, 15))
 
     def _one_cycle(self):
         est = self.est
@@ -1029,7 +1029,7 @@ canvas { width: 100%; height: 280px; display: block; }
 
 <div class="footer">
   AShareAuto · A股自动交易系统 · © 2026 Gavin · 谨慎交易, 风险自负
-  · v<span id="versionTag" class="footer-brand">1.0.0</span>
+  · v<span id="versionTag" class="footer-brand">1.0.1</span>
 </div>
 
 <!-- ===== Settings Modal ===== -->
@@ -1150,10 +1150,12 @@ function showGate() {
 
 async function gateAuthorize() {
   const pw = $('gatePw').value;
-  const r = await fetch('/api/authorize', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password: pw})});
-  if (r.status === 401) { alert('密码错误'); return; }
-  const d = await r.json();
-  if (d.success) { location.reload(); } else { alert(d.error || '授权失败'); }
+  try {
+    const r = await fetch('/api/authorize', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password: pw})});
+    if (r.status === 401) { alert('密码错误'); return; }
+    const d = await r.json();
+    if (d.success) { location.reload(); } else { alert(d.error || '授权失败'); }
+  } catch (e) { alert('授权请求失败: ' + e.message); }
 }
 
 // ===== Dashboard poll =====
@@ -1511,12 +1513,14 @@ function openAuthorize() { $('authorizeModal').classList.add('show'); }
 function closeAuthorize() { $('authorizeModal').classList.remove('show'); }
 async function doAuthorize() {
   const pw = $('authPw').value;
-  const r = await fetch('/api/authorize', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password: pw})});
-  if (r.status === 401) { alert('密码错误'); return; }
-  const d = await r.json();
-  closeAuthorize();
-  if (d.success) { showToast(d.message); setTimeout(()=>location.reload(), 600); }
-  else alert(d.error || '授权失败');
+  try {
+    const r = await fetch('/api/authorize', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password: pw})});
+    if (r.status === 401) { alert('密码错误'); return; }
+    const d = await r.json();
+    closeAuthorize();
+    if (d.success) { showToast(d.message); setTimeout(()=>location.reload(), 600); }
+    else alert(d.error || '授权失败');
+  } catch (e) { alert('授权请求失败: ' + e.message); }
 }
 async function stopAll() {
   if (!confirm('确认停止交易引擎?')) return;
