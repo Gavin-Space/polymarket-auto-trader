@@ -3,7 +3,7 @@
 # Polymarket Auto-Trader — 一键在线安装（curl | bash）
 #
 # 用法（在云服务器上执行，无需先上传任何文件）：
-#   bash <(curl -sSL https://raw.githubusercontent.com/gaofeird/polymarket-auto-trader/main/deploy/install-online.sh)
+#   bash <(curl -sSL https://raw.githubusercontent.com/Gavin-Space/polymarket-auto-trader/main/deploy/install-online.sh)
 #
 # 可选环境变量：
 #   POLY_REPO_URL  仓库地址（默认官方仓库，fork 后改这里）
@@ -13,7 +13,7 @@
 # ============================================================
 set -euo pipefail
 
-REPO_URL="${POLY_REPO_URL:-https://github.com/gaofeird/polymarket-auto-trader.git}"
+REPO_URL="${POLY_REPO_URL:-https://github.com/Gavin-Space/polymarket-auto-trader.git}"
 APP_DIR="${POLY_APP_DIR:-$HOME/polymarket-auto-trader}"
 PORT="${POLY_PORT:-5000}"
 TAG="${POLY_TAG:-}"

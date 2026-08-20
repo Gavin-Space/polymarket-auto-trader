@@ -39,7 +39,7 @@ Polymarket 部分 API 有地区限制。**建议**：
 
 ## 二、从 GitHub 在线安装（推荐，无需手动上传）
 
-代码已发布到 GitHub（公开）：`https://github.com/gaofeird/polymarket-auto-trader`
+代码已发布到 GitHub（公开）：`https://github.com/Gavin-Space/polymarket-auto-trader`
 
 在服务器上直接 `git clone` 即可拿到最新代码：
 
@@ -49,7 +49,7 @@ ssh ubuntu@<服务器公网IP>
 
 # 2. 安装 git（一般自带）并克隆仓库
 sudo apt-get update && sudo apt-get install -y git
-git clone https://github.com/gaofeird/polymarket-auto-trader.git
+git clone https://github.com/Gavin-Space/polymarket-auto-trader.git
 cd polymarket-auto-trader
 ```
 
@@ -71,7 +71,7 @@ sudo systemctl restart polymarket-bot
 无需手动 clone / 上传，直接在服务器上执行一行命令即可：
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/gaofeird/polymarket-auto-trader/main/deploy/install-online.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/Gavin-Space/polymarket-auto-trader/main/deploy/install-online.sh)
 ```
 
 脚本会自动：装依赖 → clone 代码 → 建 venv → 装 Python 依赖 → 装 systemd 服务。
