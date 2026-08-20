@@ -1,0 +1,8 @@
+# AShareAuto (A股自动交易系统) 依赖
+# xtquant 不在 PyPI —— 需随 QMT 客户端附带(见 A-SHARE-README.md)
+flask>=3.0
+akshare>=1.16.0
+pandas>=2.0
+numpy>=1.24
+cryptography>=42.0
+py_mini_racer>=0.6.0

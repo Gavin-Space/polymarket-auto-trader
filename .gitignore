@@ -19,6 +19,11 @@ trading_config.json
 *.log
 *.log.*
 
+# --- AShareAuto (A股系统) 缓存/状态/配置 ---
+data/
+data/*.db*
+data/ashare_*.json
+
 # --- Personal / workbuddy memory ---
 .workbuddy/
 

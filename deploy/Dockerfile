@@ -24,6 +24,7 @@ COPY auto_trader.py strategy_engine.py ./
 ENV POLY_WORKSPACE=/data
 VOLUME /data
 
-EXPOSE 5000
+EXPOSE 5001
+ENV PORT=5001
 
 CMD ["python", "auto_trader.py"]

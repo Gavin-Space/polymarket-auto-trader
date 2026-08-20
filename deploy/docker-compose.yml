@@ -2,8 +2,8 @@
 # Polymarket Auto-Trader — docker compose
 # ============================================================
 # The dashboard binds to 127.0.0.1 ONLY. Reach it through an SSH tunnel:
-#   ssh -L 5000:127.0.0.1:5000 user@SERVER_IP
-# then open http://localhost:5000 locally.
+#   ssh -L 5001:127.0.0.1:5001 user@SERVER_IP
+# then open http://localhost:5001 locally. (A股主界面 AShareAuto 在 5000)
 # Optionally put it behind nginx with Basic Auth instead.
 # ============================================================
 
@@ -13,8 +13,9 @@ services:
     container_name: polymarket-bot
     environment:
       - POLY_WORKSPACE=/data
+      - PORT=5001
     ports:
-      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:5001:5001"
     volumes:
       - ./data:/data
     restart: unless-stopped

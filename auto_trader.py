@@ -18,7 +18,7 @@ Security:
 
 Usage:
   python auto_trader.py
-  # Open http://localhost:5000
+  # Open http://localhost:5001 (A股主界面在 5000)
   # Enter credentials -> Click "Authorize & Start" -> Done
 """
 
@@ -78,7 +78,7 @@ CLOB_HOST = "https://clob.polymarket.com"
 # the cumulative release iteration (15th release → 1.15.0). Logged at startup
 # so the operator can confirm which code is actually running on a (remote)
 # server, and shown in the dashboard footer.
-VERSION = "1.15.0"
+VERSION = "1.16.0"
 
 # ============================================================
 #  Runtime Configuration Store (trading_config.json)
@@ -4611,7 +4611,7 @@ if __name__ == "__main__":
     print("  PolyAuto - 全自动交易系统  " + VERSION)
     print("=" * 60)
     print()
-    print("  浏览器打开: http://localhost:5000")
+    print("  浏览器打开: http://localhost:" + str(int(os.environ.get("PORT", "5001"))))
     print()
     print("  首次使用:")
     print("    1. 点击「配置」输入钱包凭证和密码")
@@ -4628,5 +4628,6 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
 
-    log.info("PolyAuto %s starting — web server on http://localhost:5000", VERSION)
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+    _port = int(os.environ.get("PORT", "5001"))
+    log.info("PolyAuto %s starting — web server on http://localhost:%d", VERSION, _port)
+    app.run(host="0.0.0.0", port=_port, debug=False, threaded=True)

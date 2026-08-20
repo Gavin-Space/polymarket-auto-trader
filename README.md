@@ -12,6 +12,21 @@
 
 ---
 
+## 📈 姊妹系统:AShareAuto(A股自动交易)
+
+本仓库同时包含 **AShareAuto** —— 面向 A股 市场(股票 + 可转债)的多策略自动交易系统,
+采用与 PolyAuto 相同的设计哲学(多策略评分 → 严格过滤 → 分层风控 → Web 仪表盘 → 会话鉴权)。
+
+**端口布局:AShareAuto 为主界面(5000),PolyAuto 为子界面(5001)**,
+两个系统头部都有链接按钮互跳。详见 [A-SHARE-README.md](A-SHARE-README.md)。
+
+| 系统 | 端口 | 启动命令 | 说明 |
+|------|------|---------|------|
+| **AShareAuto(A股主界面)** | **5000** | `python ashare_trader.py` | 双低/打新/红利/趋势 · 默认模拟盘 · QMT 实盘接口 |
+| Polymarket 机器人(子界面) | **5001** | `python auto_trader.py` | 原 Polymarket 系统,端口已从 5000 迁移至此 |
+
+---
+
 ## ✨ 功能特性
 
 - **6 大策略**（`strategy_engine.py`）：
@@ -62,7 +77,8 @@ pip install -r requirements.txt
 # 2. 启动
 python auto_trader.py
 
-# 3. 浏览器打开 http://localhost:5000
+# 3. 浏览器打开 http://localhost:5001
+#    （A股主界面 AShareAuto 在 http://localhost:5000）
 #    「配置」→ 输钱包凭证 → 加密保存
 #    「授权并启动」→ 输密码 → 自动开始交易
 ```

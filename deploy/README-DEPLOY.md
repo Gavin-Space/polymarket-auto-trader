@@ -1,10 +1,10 @@
 # Polymarket Auto-Trader — 远程服务器部署指南
 
 把本 `deploy/` 目录上传到你的 Linux 服务器（Ubuntu/Debian 推荐），按下面的方式运行。
-完整的仪表盘（授权、交易、监控、设置）会自动运行在 **5000 端口**。
+完整的仪表盘（授权、交易、监控、设置）会自动运行在 **5001 端口**（A股主界面 AShareAuto 占用 5000）。
 
 > ⚠️ **重要安全提示**：仪表盘没有内置登录，请务必配合下面的防护措施，
-> 不要直接把 5000 端口暴露到公网。
+> 不要直接把 5001 端口暴露到公网。
 
 ---
 
@@ -24,9 +24,9 @@ docker compose down                 # 停止
 访问方式（二选一）：
 1. **SSH 隧道（最简单）**——在你的电脑上：
    ```bash
-   ssh -L 5000:127.0.0.1:5000 用户名@服务器IP
+   ssh -L 5001:127.0.0.1:5001 用户名@服务器IP
    ```
-   然后浏览器打开 `http://localhost:5000`。
+   然后浏览器打开 `http://localhost:5001`。
 2. 用 nginx 反代并加 Basic Auth（见文末）。
 
 ---
@@ -80,11 +80,11 @@ sudo systemctl stop polymarket-bot    # 停止
 
 重启服务后，访问任何页面都会要求输入用户名 `admin` + 该密码。
 
-### 2) 不要直接暴露 5000 端口
-Docker 方式已绑定 `127.0.0.1`，公网访问不到，只能通过 SSH 隧道。原生 systemd 方式 Flask 监听 `0.0.0.0:5000`，请用防火墙限制：
+### 2) 不要直接暴露 5001 端口
+Docker 方式已绑定 `127.0.0.1`，公网访问不到，只能通过 SSH 隧道。原生 systemd 方式 Flask 监听 `0.0.0.0:5001`，请用防火墙限制：
 
 ```bash
-sudo ufw deny 5000/tcp        # 或配置只允许你的 IP
+sudo ufw deny 5001/tcp        # 或配置只允许你的 IP
 ```
 
 ### 3) （可选）nginx 反代 + Basic Auth
@@ -98,7 +98,7 @@ server {
     auth_basic_user_file /etc/nginx/.htpasswd;   # htpasswd -c .htpasswd admin
 
     location / {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:5001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_read_timeout 3600;
@@ -112,7 +112,7 @@ server {
 
 - **交易一直失败 / 网络错误**：本机代理（Clash 等）可能导致 HTTPS 握手失败。
   仪表盘的授权弹窗里有「网络诊断」按钮可定位；服务器上如需代理请设置 `HTTP_PROXY`/`HTTPS_PROXY`。
-- **端口被占用**：`sudo ss -lntp | grep 5000` 找到占用进程。
+- **端口被占用**：`sudo ss -lntp | grep 5001` 找到占用进程。
 - **防火墙**：SSH 隧道不受影响，但直连需要放行端口（不建议）。
 - **数据备份**：Docker 备份 `deploy/data/`，systemd 备份 `/opt/polymarket-bot/data/`（含 `bot_state.json`、`trading_config.json`、`.encrypted_credentials`）。
 

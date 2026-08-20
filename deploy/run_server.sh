@@ -36,7 +36,8 @@ else
   PY=python3
 fi
 
+export PORT="${PORT:-5001}"
 nohup "$PY" auto_trader.py >> "$DATA_DIR/server_output.log" 2>&1 &
 echo "PolyAuto started (PID $!)."
-echo "Dashboard: http://localhost:5000"
+echo "Dashboard: http://localhost:${PORT}"
 echo "Logs:      tail -f $DATA_DIR/server_output.log"

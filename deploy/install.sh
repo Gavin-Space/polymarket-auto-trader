@@ -34,6 +34,7 @@ Type=simple
 WorkingDirectory=$APP_DIR
 Environment=PYTHONUNBUFFERED=1
 Environment=POLY_WORKSPACE=$APP_DIR/data
+Environment=PORT=5001
 ExecStart=$APP_DIR/venv/bin/python $APP_DIR/auto_trader.py
 Restart=always
 RestartSec=5
@@ -53,12 +54,12 @@ echo "安装完成！"
 echo "  启动:  sudo systemctl start polymarket-bot"
 echo "  状态:  sudo systemctl status polymarket-bot"
 echo "  日志:  sudo journalctl -u polymarket-bot -f"
-echo "  界面:  http://服务器IP:5000"
+echo "  界面:  http://服务器IP:5001"
 echo ""
 echo "安全建议（重要）:"
 echo "  1. 首次访问界面 → 配置 → 输入钱包凭证，加密保存后授权"
 echo "  2. 为保护远程界面，请设置访问密码:"
 echo "     sudo nano $APP_DIR/data/trading_config.json"
 echo "     在文件中把 web_password 改为你的密码，然后重启服务"
-echo "  3. 不要将 5000 端口直接暴露到公网；建议用 SSH 隧道或 nginx+认证"
+echo "  3. 不要将 5001 端口直接暴露到公网；建议用 SSH 隧道或 nginx+认证"
 echo "=============================================================="
